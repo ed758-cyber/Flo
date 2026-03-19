@@ -1,0 +1,157 @@
+datasource db {
+    provider = "mysql"
+    url      = env("DATABASE_URL")
+}
+
+generator client {
+    provider = "prisma-client-js"
+}
+
+enum Role {
+    USER
+    OWNER
+    EMPLOYEE
+    ACCOUNTANT
+}
+
+enum BookingStatus {
+    PENDING
+    CONFIRMED
+    CANCELLED
+    NO_SHOW
+    COMPLETED
+}
+
+enum PaymentMethod {
+    CARD
+    CASH
+}
+
+enum PaymentStatus {
+    UNPAID
+    PARTIAL
+    PAID
+    REFUNDED
+}
+
+model User {
+    id             String    @id @default(cuid())
+    email          String    @unique
+    hashedPassword String?
+    name           String?
+    image          String?
+    role           Role      @default(USER)
+    OwnedSpas      Spa[]
+    Employee       Employee?
+    Bookings       Booking[] @relation("UserBookings")
+    createdAt      DateTime  @default(now())
+    updatedAt      DateTime  @updatedAt
+}
+
+model Spa {
+    id            String       @id @default(cuid())
+    ownerId       String
+    owner         User         @relation(fields: [ownerId], references: [id])
+    name          String
+    slug          String       @unique
+    description   String?
+    logoUrl       String?
+    coverUrl      String?
+    timezone      String       @default("America/St_Lucia")
+    colorPrimary  String       @default("#6EE7B7")
+    address       String?
+    phone         String?
+    email         String?
+    businessHours Json
+    depositRule   Json?
+    paymentConfig Json?
+    Services      Service[]
+    Subservices   Subservice[]
+    Employees     Employee[]
+    Bookings      Booking[]
+    createdAt     DateTime     @default(now())
+    updatedAt     DateTime     @updatedAt
+}
+
+model Service {
+    id          String       @id @default(cuid())
+    spaId       String
+    spa         Spa          @relation(fields: [spaId], references: [id])
+    name        String
+    description String?
+    active      Boolean      @default(true)
+    Subservices Subservice[]
+    createdAt   DateTime     @default(now())
+    updatedAt   DateTime     @updatedAt
+}
+
+model Subservice {
+    id          String     @id @default(cuid())
+    spaId       String
+    spa         Spa        @relation(fields: [spaId], references: [id])
+    serviceId   String
+    service     Service    @relation(fields: [serviceId], references: [id])
+    name        String
+    description String?
+    durationMin Int
+    priceCents  Int
+    active      Boolean    @default(true)
+    Providers   Employee[] @relation("ProviderServices")
+    Bookings    Booking[]
+    createdAt   DateTime   @default(now())
+    updatedAt   DateTime   @updatedAt
+}
+
+model Employee {
+    id        String       @id @default(cuid())
+    spaId     String
+    spa       Spa          @relation(fields: [spaId], references: [id])
+    userId    String?      @unique
+    user      User?        @relation(fields: [userId], references: [id])
+    name      String
+    photoUrl  String?
+    bio       String?
+    services  Subservice[] @relation("ProviderServices")
+    schedule  Json
+    Bookings  Booking[]
+    createdAt DateTime     @default(now())
+    updatedAt DateTime     @updatedAt
+    phone     String?
+    email     String?
+}
+
+model Booking {
+    id            String        @id @default(cuid())
+    spaId         String
+    spa           Spa           @relation(fields: [spaId], references: [id])
+    userId        String?
+    user          User?         @relation("UserBookings", fields: [userId], references: [id])
+    employeeId    String?
+    employee      Employee?     @relation(fields: [employeeId], references: [id])
+    subserviceId  String
+    subservice    Subservice    @relation(fields: [subserviceId], references: [id])
+    start         DateTime
+    end           DateTime
+    status        BookingStatus @default(PENDING)
+    notes         String?
+    paymentMethod PaymentMethod
+    paymentStatus PaymentStatus @default(UNPAID)
+    totalCents    Int
+    paidCents     Int           @default(0)
+    stripePiId    String?
+    cancellation  Cancellation?
+    createdAt     DateTime      @default(now())
+    updatedAt     DateTime      @updatedAt
+
+    @@index([spaId, start])
+    @@index([employeeId, start])
+}
+
+model Cancellation {
+    id        String   @id @default(cuid())
+    bookingId String   @unique
+    booking   Booking  @relation(fields: [bookingId], references: [id])
+    reason    String?
+    feeCents  Int      @default(0)
+    createdAt DateTime @default(now())
+}
