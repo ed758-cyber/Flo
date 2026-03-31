@@ -44,6 +44,9 @@ model User {
     OwnedSpas      Spa[]
     Employee       Employee?
     Bookings       Booking[] @relation("UserBookings")
+    Reviews        Review[]
+    Notifications  Notification[]
+    SupportTickets SupportTicket[]
     createdAt      DateTime  @default(now())
     updatedAt      DateTime  @updatedAt
 }
@@ -69,6 +72,8 @@ model Spa {
     Subservices   Subservice[]
     Employees     Employee[]
     Bookings      Booking[]
+    Reviews       Review[]
+    SupportTickets SupportTicket[]
     createdAt     DateTime     @default(now())
     updatedAt     DateTime     @updatedAt
 }
@@ -154,4 +159,71 @@ model Cancellation {
     reason    String?
     feeCents  Int      @default(0)
     createdAt DateTime @default(now())
+}
+
+model Review {
+    id           String   @id @default(cuid())
+    spaId        String
+    spa          Spa      @relation(fields: [spaId], references: [id])
+    userId       String
+    user         User     @relation(fields: [userId], references: [id])
+    bookingId    String?
+    rating       Int      @default(5)
+    title        String
+    comment      String
+    verified     Boolean  @default(true)
+    createdAt    DateTime @default(now())
+    updatedAt    DateTime @updatedAt
+
+    @@index([spaId])
+    @@index([userId])
+}
+
+enum NotificationType {
+    BOOKING_CONFIRMED
+    BOOKING_CANCELLED
+    BOOKING_REMINDER
+    PAYMENT_RECEIVED
+    REVIEW_RECEIVED
+    SUPPORT_RESPONSE
+}
+
+model Notification {
+    id        String           @id @default(cuid())
+    userId    String
+    user      User             @relation(fields: [userId], references: [id])
+    type      NotificationType
+    title     String
+    message   String
+    read      Boolean          @default(false)
+    data      Json?
+    createdAt DateTime         @default(now())
+    updatedAt DateTime         @updatedAt
+
+    @@index([userId, read])
+}
+
+enum SupportStatus {
+    OPEN
+    IN_PROGRESS
+    RESOLVED
+    CLOSED
+}
+
+model SupportTicket {
+    id        String        @id @default(cuid())
+    userId    String
+    user      User          @relation(fields: [userId], references: [id])
+    spaId     String?
+    spa       Spa?          @relation(fields: [spaId], references: [id])
+    subject   String
+    message   String
+    status    SupportStatus @default(OPEN)
+    priority  String        @default("MEDIUM")
+    replies   String?
+    createdAt DateTime      @default(now())
+    updatedAt DateTime      @updatedAt
+
+    @@index([userId, status])
+    @@index([spaId, status])
 }

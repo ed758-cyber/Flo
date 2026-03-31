@@ -54,14 +54,13 @@ export default async function DashboardPage() {
 							</h1>
 
 							<p className='text-lg sm:text-xl text-warm-100 mb-8 leading-relaxed max-w-xl'>
-								Indulge in world-class spa treatments and wellness experiences
-								across Saint Lucia. From oceanfront massages to rejuvenating
+									Discover world-class wellness treatments and rejuvenating experiences
 								facials—your perfect escape awaits.
 							</p>
 
 							<div className='flex flex-wrap gap-4'>
 								<a
-									href='#spas'
+									href='#services'
 									className='px-8 py-4 bg-white text-warm-900 rounded-full font-semibold hover:bg-warm-50 transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-105'
 								>
 									Explore
@@ -100,15 +99,15 @@ export default async function DashboardPage() {
 							<div className='space-y-4'>
 								<div className='h-48 rounded-2xl overflow-hidden shadow-2xl'>
 									<img
-										src='https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=400&h=300&fit=crop&q=80'
-										alt='Spa treatment'
+											src='https://images.unsplash.com/photo-1600334129128-685c5582fd35?w=400&h=300&fit=crop&q=80'
+											alt='Wellness treatment'
 										className='w-full h-full object-cover'
 									/>
 								</div>
 								<div className='h-64 rounded-2xl overflow-hidden shadow-2xl'>
 									<img
-										src='https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=400&h=400&fit=crop&q=80'
-										alt='Spa environment'
+											src='https://images.unsplash.com/photo-1559599810-46d8e666fd8e?w=400&h=400&fit=crop&q=80'
+											alt='Relaxation and wellness'
 										className='w-full h-full object-cover'
 									/>
 								</div>
@@ -116,15 +115,15 @@ export default async function DashboardPage() {
 							<div className='space-y-4 mt-8'>
 								<div className='h-64 rounded-2xl overflow-hidden shadow-2xl'>
 									<img
-										src='https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=400&fit=crop&q=80'
-										alt='Wellness'
+										src='https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400&h=400&fit=crop&q=80'
+										alt='Wellness treatment experience'
 										className='w-full h-full object-cover'
 									/>
 								</div>
 								<div className='h-48 rounded-2xl overflow-hidden shadow-2xl'>
 									<img
-										src='https://images.unsplash.com/photo-1545205597-3d9d02c29597?w=400&h=300&fit=crop&q=80'
-										alt='Relaxation'
+										src='https://images.unsplash.com/photo-1609208989537-6c0ee0fb4808?w=400&h=300&fit=crop&q=80'
+										alt='Peaceful wellness environment'
 										className='w-full h-full object-cover'
 									/>
 								</div>
@@ -134,23 +133,22 @@ export default async function DashboardPage() {
 				</div>
 			</div>
 
-			{/* Spa Cards */}
-			<div id='spas' className='max-w-7xl mx-auto px-6 py-20'>
+			{/* Featured Wellness Services */}
+			<div id='services' className='max-w-7xl mx-auto px-6 py-20'>
 				<div className='mb-12 text-center'>
 					<h2 className='text-sm font-semibold text-warm-600 tracking-wider mb-4'>
-						FEATURED DESTINATIONS
+						FEATURED SERVICES
 					</h2>
 					<h3 className='text-4xl sm:text-5xl font-serif font-light text-gray-900 mb-4'>
-						Discover Your Perfect Spa
+						Discover What's Perfect For You
 					</h3>
 					<p className='text-lg text-gray-600 max-w-2xl mx-auto'>
-						Handpicked wellness sanctuaries offering exceptional treatments in
-						stunning Saint Lucia locations
+						Discover exceptional wellness locations and treatments 
 					</p>
 				</div>
 
 				<div className='grid md:grid-cols-2 lg:grid-cols-3 gap-8'>
-					{spas.map((spa) => (
+					{spas.slice(0, 9).map((spa) => (
 						<Link
 							key={spa.id}
 							href={`/s/${spa.slug}`}
@@ -265,6 +263,21 @@ export default async function DashboardPage() {
 					))}
 				</div>
 
+				{/* View All Button */}
+				{spas.length > 9 && (
+					<div className='mt-12 text-center'>
+						<Link
+							href='/spas'
+							className='inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-warm-400 to-nude-400 text-white rounded-full font-semibold text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300'
+						>
+							View All {spas.length} Locations
+							<svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+								<path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M9 5l7 7-7 7' />
+							</svg>
+						</Link>
+					</div>
+				)}
+
 				{spas.length === 0 && (
 					<div className='text-center py-12 bg-white rounded-2xl shadow'>
 						<div className='text-gray-400 mb-4'>
@@ -283,7 +296,7 @@ export default async function DashboardPage() {
 							</svg>
 						</div>
 						<h3 className='text-xl font-semibold text-gray-700 mb-2'>
-							No Spas Available Yet
+								No Wellness Services Available Yet
 						</h3>
 						<p className='text-gray-500'>
 							Run the seed script to add sample data.
@@ -300,7 +313,7 @@ export default async function DashboardPage() {
 						<div>
 							<h3 className='text-2xl font-serif text-warm-900 mb-4'>FLO</h3>
 							<p className='text-gray-600 text-sm leading-relaxed mb-4'>
-								Saint Lucia's premier spa booking platform. Discover
+								Saint Lucia's premier wellness booking platform. Discover
 								tranquility, book wellness.
 							</p>
 							<div className='flex gap-3'>
@@ -355,7 +368,7 @@ export default async function DashboardPage() {
 							<ul className='space-y-3'>
 								<li>
 									<a
-										href='#spas'
+										href='#services'
 										className='text-gray-600 hover:text-warm-600 transition-colors text-sm'
 									>
 										Browse

@@ -939,3 +939,54 @@ export function NewBookingButton({ spa }: { spa: any }) {
 		</>
 	)
 }
+
+export function ContactButton() {
+	const [open, setOpen] = useState(false)
+	return (
+		<>
+			<button
+				onClick={() => setOpen(true)}
+				className='flex items-center gap-2 px-5 py-2.5 bg-warm-500 text-white rounded-xl font-semibold hover:bg-warm-600 transition-colors shadow-sm'
+			>
+				<svg className='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+					<path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' />
+				</svg>
+				Contact Support
+			</button>
+			{open && (
+				<div className='fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4'>
+					<div className='bg-white rounded-2xl shadow-2xl w-full max-w-sm'>
+						<div className='flex items-center justify-between px-6 py-4 border-b border-gray-100'>
+							<h3 className='text-lg font-bold text-gray-900'>Contact Flo Support</h3>
+							<button
+								onClick={() => setOpen(false)}
+								className='p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-500'
+							>
+								<svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+									<path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M6 18L18 6M6 6l12 12' />
+								</svg>
+							</button>
+						</div>
+						<div className='p-6 space-y-4'>
+							<div className='p-4 bg-warm-50 rounded-lg'>
+								<p className='text-sm text-gray-500 mb-1'>Phone</p>
+								<p className='text-xl font-bold text-warm-600'>+1-888-FLO-HELP</p>
+								<p className='text-xs text-gray-500 mt-2'>Available: Monday-Friday, 9AM-6PM</p>
+							</div>
+							<div className='p-4 bg-warm-50 rounded-lg'>
+								<p className='text-sm text-gray-500 mb-1'>Email</p>
+								<p className='text-lg font-bold text-warm-600'>support@floapp.com</p>
+								<p className='text-xs text-gray-500 mt-2'>We respond within 2 hours</p>
+							</div>
+							<div className='p-4 bg-warm-50 rounded-lg'>
+								<p className='text-sm text-gray-500 mb-1'>Live Chat</p>
+								<p className='text-lg font-bold text-warm-600'>24/7 Available</p>
+								<p className='text-xs text-gray-500 mt-2'>Click the chat icon in the corner</p>
+							</div>
+						</div>
+					</div>
+				</div>
+			)}
+		</>
+	)
+}

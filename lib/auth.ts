@@ -33,7 +33,22 @@ export const authOptions: NextAuthOptions = {
 			},
 		}),
 	],
-	session: { strategy: 'jwt' },
+	session: { 
+		strategy: 'jwt',
+		maxAge: 24 * 60 * 60, // 24 hours
+	},
+	cookies: {
+		sessionToken: {
+			name: `next-auth.session-token`,
+			options: {
+				httpOnly: true,
+				secure: process.env.NODE_ENV === 'production',
+				sameSite: 'lax',
+				maxAge: undefined, // Session cookie - expires when browser closes
+				path: '/',
+			},
+		},
+	},
 	callbacks: {
 		/**
 		 * BUG FIX: On Google sign-in, `user` object doesn't carry `role`
@@ -78,5 +93,8 @@ export const authOptions: NextAuthOptions = {
 			;(session.user as any).role = token.role
 			return session
 		},
+	},
+	pages: {
+		signOut: '/join-us',
 	},
 }

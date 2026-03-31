@@ -8,7 +8,7 @@ import {
 	StaffPanel,
 	ServicesPanel,
 	SpaSettingsPanel,
-	NewBookingButton,
+	ContactButton,
 } from './components'
 
 export default async function ManagerDashboardPage({
@@ -77,6 +77,7 @@ export default async function ManagerDashboardPage({
 	const pendingPayments = spa.Bookings.filter(
 		(b) => b.paymentStatus === 'UNPAID' && b.status !== 'CANCELLED'
 	).length
+	const totalBookings = spa.Bookings.filter((b) => b.status !== 'CANCELLED').length
 
 	const tabs = [
 		{ id: 'bookings', label: 'Bookings', icon: '📅' },
@@ -112,18 +113,19 @@ export default async function ManagerDashboardPage({
 							<h1 className='text-3xl font-bold mb-1'>{spa.name}</h1>
 							{spa.address && <p className='text-warm-100 text-sm'>{spa.address}</p>}
 						</div>
+					<div className='flex gap-3'>
+						<ContactButton />
 						<Link
-							href='/dashboard'
+							href='/manager/home'
 							className='px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg text-sm font-medium transition-colors'
 						>
-							← Dashboard
+							← Home
 						</Link>
 					</div>
-
-					{/* Stats */}
-					<div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
+				</div>
+				<div className='grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6'>
 						{[
-							{ label: "Today's Bookings", value: todayBookings.length, icon: '📅' },
+							{ label: 'Total Bookings', value: totalBookings, icon: '📅' },
 							{ label: 'Total Revenue', value: `$${(totalRevenue / 100).toFixed(0)}`, icon: '💰' },
 							{ label: 'Pending Payments', value: pendingPayments, icon: '⏳' },
 							{ label: 'Staff Members', value: spa.Employees.length, icon: '👥' },
@@ -164,10 +166,6 @@ export default async function ManagerDashboardPage({
 				{/* ── Bookings ── */}
 				{activeTab === 'bookings' && (
 					<div className='space-y-6'>
-						{/* New booking CTA */}
-						<div className='flex justify-end'>
-							<NewBookingButton spa={spa} />
-						</div>
 
 						{/* Upcoming table */}
 						<div className='bg-white rounded-2xl shadow-sm overflow-hidden'>

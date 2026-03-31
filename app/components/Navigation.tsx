@@ -2,10 +2,15 @@
 import { signOut } from 'next-auth/react'
 import Link from 'next/link'
 import { useState } from 'react'
+import { handleSignOut } from '@/lib/signout'
 
 export default function Navigation({ session }: { session: any }) {
 	const [isMenuOpen, setIsMenuOpen] = useState(false)
 	const userRole = (session?.user as any)?.role
+
+	const handleSignOutClick = async () => {
+		await handleSignOut()
+	}
 
 	return (
 		<header className='bg-white sticky top-0 z-50 shadow-sm'>
@@ -133,14 +138,22 @@ export default function Navigation({ session }: { session: any }) {
 							</a>
 						</div>
 
-						{/* Book Now Button */}
+						{/* Book Now / Join Us Button */}
+					{!session ? (
 						<Link
-							href='#spas'
+							href='/join-us'
+							className='bg-warm-600 hover:bg-warm-700 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-colors shadow-md hover:shadow-lg'
+						>
+							JOIN US
+						</Link>
+					) : userRole === 'USER' ? (
+						<Link
+							href='#services'
 							className='bg-warm-600 hover:bg-warm-700 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-colors shadow-md hover:shadow-lg'
 						>
 							BOOK NOW
 						</Link>
-
+					) : null}
 						{session && (
 							<div className='relative group ml-4'>
 								<button className='flex items-center gap-2 text-gray-700 hover:text-warm-600'>
@@ -166,17 +179,45 @@ export default function Navigation({ session }: { session: any }) {
 									>
 										My Bookings
 									</Link>
+									<Link
+										href='/profile/notifications'
+										className='block px-4 py-2 text-sm text-gray-700 hover:bg-warm-50 hover:text-warm-600'
+									>
+										Notifications
+									</Link>
+									<Link
+										href='/support'
+										className='block px-4 py-2 text-sm text-gray-700 hover:bg-warm-50 hover:text-warm-600'
+									>
+										Support & Help
+									</Link>
+									<Link
+										href='/search'
+										className='block px-4 py-2 text-sm text-gray-700 hover:bg-warm-50 hover:text-warm-600'
+									>
+										Search Locations
+									</Link>
 									{userRole === 'OWNER' && (
-										<Link
-											href='/manager'
-											className='block px-4 py-2 text-sm text-gray-700 hover:bg-warm-50 hover:text-warm-600'
-										>
-											Manager Dashboard
-										</Link>
+										<>
+											<div className='border-t border-gray-100 mt-2 pt-2'>
+												<Link
+													href='/manager'
+													className='block px-4 py-2 text-sm text-gray-700 hover:bg-warm-50 hover:text-warm-600'
+												>
+													Manager Dashboard
+												</Link>
+												<Link
+													href='/manager/support'
+													className='block px-4 py-2 text-sm text-gray-700 hover:bg-warm-50 hover:text-warm-600'
+												>
+													Support Tickets
+												</Link>
+											</div>
+										</>
 									)}
 									<button
-										onClick={() => signOut({ callbackUrl: '/auth/sign-in' })}
-										className='block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50'
+										onClick={handleSignOutClick}
+										className='block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 border-t border-gray-100 mt-2 pt-2'
 									>
 										Sign Out
 									</button>
@@ -259,7 +300,7 @@ export default function Navigation({ session }: { session: any }) {
 											{session?.user?.email}
 										</div>
 										<button
-											onClick={() => signOut({ callbackUrl: '/auth/sign-in' })}
+											onClick={handleSignOutClick}
 											className='w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg'
 										>
 											Sign Out
