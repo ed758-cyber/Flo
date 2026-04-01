@@ -99,15 +99,15 @@ export default async function DashboardPage() {
 							<div className='space-y-4'>
 								<div className='h-48 rounded-2xl overflow-hidden shadow-2xl'>
 									<img
-											src='https://images.unsplash.com/photo-1600334129128-685c5582fd35?w=400&h=300&fit=crop&q=80'
-											alt='Wellness treatment'
+										src='https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=400&h=300&fit=crop&q=80'
+										alt='Spa massage treatment'
 										className='w-full h-full object-cover'
 									/>
 								</div>
 								<div className='h-64 rounded-2xl overflow-hidden shadow-2xl'>
 									<img
-											src='https://images.unsplash.com/photo-1600334129128-685c5582fd35?w=400&h=300&fit=crop&q=80'
-											alt='Relaxation and wellness'
+										src='https://images.unsplash.com/photo-1562322140-8baeececf3df?w=400&h=400&fit=crop&q=80'
+										alt='Hair salon styling'
 										className='w-full h-full object-cover'
 									/>
 								</div>
@@ -115,15 +115,15 @@ export default async function DashboardPage() {
 							<div className='space-y-4 mt-8'>
 								<div className='h-64 rounded-2xl overflow-hidden shadow-2xl'>
 									<img
-										src='https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400&h=400&fit=crop&q=80'
-										alt='Wellness treatment experience'
+										src='https://images.unsplash.com/photo-1604654894610-df63bc536371?w=400&h=400&fit=crop&q=80'
+										alt='Nail care and beauty'
 										className='w-full h-full object-cover'
 									/>
 								</div>
 								<div className='h-48 rounded-2xl overflow-hidden shadow-2xl'>
 									<img
-										src='https://images.unsplash.com/photo-1609208989537-6c0ee0fb4808?w=400&h=300&fit=crop&q=80'
-										alt='Peaceful wellness environment'
+										src='https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=300&fit=crop&q=80'
+										alt='Wellness and relaxation'
 										className='w-full h-full object-cover'
 									/>
 								</div>
