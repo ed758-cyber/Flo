@@ -142,13 +142,18 @@ export default async function ManagerHomePage() {
 								</div>
 							) : (
 								<div className='grid grid-cols-2 gap-4'>
-									{spa.Services.map((service) => (
-										<div key={service.id} className='p-4 border border-gray-200 rounded-lg'>
-											<h3 className='font-semibold text-gray-900'>{service.name}</h3>
-											<p className='text-sm text-gray-500 mt-1'>{service.Subservices.length} options</p>
-											<p className='text-sm text-warm-600 font-medium mt-2'>${(service.basePrice / 100).toFixed(0)}</p>
-										</div>
-									))}
+									{spa.Services.map((service) => {
+										const minPrice = service.Subservices.length > 0
+											? Math.min(...service.Subservices.map(s => s.priceCents))
+											: 0
+										return (
+											<div key={service.id} className='p-4 border border-gray-200 rounded-lg'>
+												<h3 className='font-semibold text-gray-900'>{service.name}</h3>
+												<p className='text-sm text-gray-500 mt-1'>{service.Subservices.length} options</p>
+												<p className='text-sm text-warm-600 font-medium mt-2'>From ${(minPrice / 100).toFixed(0)}</p>
+											</div>
+										)
+									})}
 								</div>
 							)}
 						</div>
@@ -166,7 +171,7 @@ export default async function ManagerHomePage() {
 									{spa.Employees.slice(0, 5).map((emp) => (
 										<div key={emp.id} className='p-3 bg-gray-50 rounded-lg'>
 											<p className='font-medium text-gray-900'>{emp.name || emp.email}</p>
-											<p className='text-xs text-gray-500'>{emp.role}</p>
+											<p className='text-xs text-gray-500'>{emp.email || 'Staff Member'}</p>
 										</div>
 									))}
 									{spa.Employees.length > 5 && (
