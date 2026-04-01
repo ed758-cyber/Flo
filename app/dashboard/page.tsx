@@ -106,7 +106,7 @@ export default async function DashboardPage() {
 								</div>
 								<div className='h-64 rounded-2xl overflow-hidden shadow-2xl'>
 									<img
-											src='https://images.unsplash.com/photo-1559599810-46d8e666fd8e?w=400&h=400&fit=crop&q=80'
+											src='https://images.unsplash.com/photo-1600334129128-685c5582fd35?w=400&h=300&fit=crop&q=80'
 											alt='Relaxation and wellness'
 										className='w-full h-full object-cover'
 									/>
