@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { getSession } from 'next-auth/react'
 import { NextRequest, NextResponse } from 'next/server'
+import { SupportStatus } from '@prisma/client'
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,7 +24,8 @@ export async function GET(request: NextRequest) {
     }
 
     const searchParams = request.nextUrl.searchParams
-    const status = searchParams.get('status') || 'OPEN'
+    const statusParam = searchParams.get('status') || 'OPEN'
+    const status = statusParam as SupportStatus
 
     const spaIds = user.OwnedSpas.map((spa) => spa.id)
 
