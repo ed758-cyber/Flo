@@ -43,7 +43,7 @@ export default function SignInPage() {
 			await signIn('credentials', {
 				email,
 				password,
-				callbackUrl: '/api/auth/redirect',
+				callbackUrl: '/dashboard',
 				redirect: true,
 			})
 		}
