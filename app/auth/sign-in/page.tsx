@@ -1,7 +1,7 @@
 'use client'
 import { signIn } from 'next-auth/react'
 import { useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 
 export default function SignInPage() {
 	const [isSignUp, setIsSignUp] = useState(false)
@@ -12,6 +12,7 @@ export default function SignInPage() {
 	const [error, setError] = useState('')
 	const searchParams = useSearchParams()
 	const callbackUrl = searchParams.get('callbackUrl') || '/dashboard'
+	const router = useRouter()
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault()
@@ -58,9 +59,11 @@ export default function SignInPage() {
 					session?.user?.role === 'OWNER' ||
 					session?.user?.role === 'EMPLOYEE'
 				) {
-					window.location.href = '/manager'
+					router.push('/manager')
+					router.refresh()
 				} else {
-					window.location.href = callbackUrl
+					router.push(callbackUrl)
+					router.refresh()
 				}
 			}
 		}
