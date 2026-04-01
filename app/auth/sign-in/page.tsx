@@ -1,7 +1,7 @@
 'use client'
 import { signIn } from 'next-auth/react'
 import { useState } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 
 export default function SignInPage() {
 	const [isSignUp, setIsSignUp] = useState(false)
@@ -12,7 +12,6 @@ export default function SignInPage() {
 	const [error, setError] = useState('')
 	const searchParams = useSearchParams()
 	const callbackUrl = searchParams.get('callbackUrl') || '/dashboard'
-	const router = useRouter()
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault()
@@ -40,32 +39,13 @@ export default function SignInPage() {
 				setIsLoading(false)
 			}
 		} else {
-			// Sign in
-			const result = await signIn('credentials', {
+			// Sign in - let NextAuth handle the redirect via a server callback
+			await signIn('credentials', {
 				email,
 				password,
-				redirect: false,
+				callbackUrl: '/api/auth/redirect',
+				redirect: true,
 			})
-			if (result?.error) {
-				setError('Invalid email or password')
-				setIsLoading(false)
-			} else {
-				// Fetch session to check user role
-				const sessionRes = await fetch('/api/auth/session')
-				const session = await sessionRes.json()
-
-				// Redirect based on role
-				if (
-					session?.user?.role === 'OWNER' ||
-					session?.user?.role === 'EMPLOYEE'
-				) {
-					router.push('/manager')
-					router.refresh()
-				} else {
-					router.push(callbackUrl)
-					router.refresh()
-				}
-			}
 		}
 	}
 
