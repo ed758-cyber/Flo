@@ -3,6 +3,8 @@ import { getSession } from 'next-auth/react'
 import { NextRequest, NextResponse } from 'next/server'
 import { SupportStatus } from '@prisma/client'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession({ req: request as any })

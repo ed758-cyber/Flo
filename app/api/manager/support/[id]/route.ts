@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from 'next-auth/react'
 import { NextRequest, NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
