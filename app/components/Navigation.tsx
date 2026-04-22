@@ -66,10 +66,10 @@ export default function Navigation({ session }: { session: any }) {
 								strokeWidth='3'
 							/>
 						</svg>
-						<div>
-							<div className='text-2xl font-bold text-gray-900'>FLO</div>
-							<div className='text-xs text-gray-500 -mt-1'>Spa Center</div>
-						</div>
+					<div>
+						<div className='text-2xl font-bold text-gray-900'>Booktrix</div>
+						<div className='text-xs text-gray-500 -mt-1'>Spa Center</div>
+					</div>
 					</Link>
 
 					{/* Desktop Navigation */}

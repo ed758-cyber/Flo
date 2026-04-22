@@ -7,6 +7,7 @@ import {
 	cancelBookingManager,
 	markBookingPaid,
 	updateBookingStatus,
+	updateBookingAmount,
 	createEmployee,
 	updateEmployee,
 	deleteEmployee,
@@ -366,6 +367,13 @@ export function CreateBookingModal({
 
 export function BookingDetailsButton({ booking }: { booking: any }) {
 	const [open, setOpen] = useState(false)
+	const [showEditAmount, setShowEditAmount] = useState(false)
+	const [isPending, startTransition] = useTransition()
+	const [result, setResult] = useState<any>(null)
+	const [newAmount, setNewAmount] = useState('')
+	const [changeReason, setChangeReason] = useState('')
+	const router = useRouter()
+
 	const customerName = booking.customerName || booking.user?.name || 'Walk-in'
 	const customerEmail = booking.customerEmail || booking.user?.email || ''
 	const customerPhone = booking.customerPhone || ''
@@ -376,6 +384,46 @@ export function BookingDetailsButton({ booking }: { booking: any }) {
 			? booking.BookingItems.map((item: any) => `${item.subservice.service.name} ${item.subservice.name}`)
 			: [serviceNames]
 	)
+
+	// Extract amount change history from notes
+	const getAmountChangeHistory = () => {
+		if (!booking.notes) return []
+		const lines = booking.notes.split('\n\n')
+		return lines.filter((line: string) => line.includes('Amount changed from'))
+	}
+
+	const amountChangeHistory = getAmountChangeHistory()
+
+	const handleEditAmount = () => {
+		if (!newAmount || isNaN(parseFloat(newAmount)) || parseFloat(newAmount) < 0) {
+			setResult({ ok: false, error: 'Please enter a valid amount' })
+			return
+		}
+		if (!changeReason.trim()) {
+			setResult({ ok: false, error: 'Please provide a reason for the change' })
+			return
+		}
+
+		startTransition(async () => {
+			const newTotalCents = Math.round(parseFloat(newAmount) * 100)
+			const res = await updateBookingAmount(booking.id, newTotalCents, changeReason)
+			setResult(res)
+			if (res.ok) {
+				setTimeout(() => {
+					setShowEditAmount(false)
+					setResult(null)
+					setNewAmount('')
+					setChangeReason('')
+					router.refresh()
+				}, 1500)
+			}
+		})
+	}
+
+	const openEditAmountModal = () => {
+		setNewAmount((booking.totalCents / 100).toFixed(2))
+		setShowEditAmount(true)
+	}
 
 	return (
 		<>
@@ -431,8 +479,19 @@ export function BookingDetailsButton({ booking }: { booking: any }) {
 							<div className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
 								Services
 							</div>
-							<div className='text-sm font-semibold text-warm-700'>
-								${(booking.totalCents / 100).toFixed(2)}
+							<div className='flex items-center gap-2'>
+								<div className='text-sm font-semibold text-warm-700'>
+									${(booking.totalCents / 100).toFixed(2)}
+								</div>
+								<button
+									onClick={openEditAmountModal}
+									className='p-1 text-gray-400 hover:text-warm-600 transition-colors'
+									title='Edit amount'
+								>
+									<svg className='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+										<path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z' />
+									</svg>
+								</button>
 							</div>
 						</div>
 						<div className='space-y-2'>
@@ -458,6 +517,25 @@ export function BookingDetailsButton({ booking }: { booking: any }) {
 							Total duration: {getBookingDurationMin(booking)} minutes
 						</div>
 					</div>
+
+					{/* Amount Change History */}
+					{amountChangeHistory.length > 0 && (
+						<div className='rounded-xl border border-yellow-200 bg-yellow-50 p-4'>
+							<div className='text-xs font-semibold uppercase tracking-wide text-yellow-700 mb-3'>
+								Amount Change History
+							</div>
+							<div className='space-y-2'>
+								{amountChangeHistory.map((entry, index) => (
+									<div key={index} className='text-xs text-yellow-800 bg-yellow-100 rounded-lg p-2'>
+										{entry}
+									</div>
+								))}
+							</div>
+							<div className='text-xs text-yellow-600 mt-2'>
+								⚠️ These changes are visible to all staff members
+							</div>
+						</div>
+					)}
 
 					<div className='grid sm:grid-cols-2 gap-4'>
 						<div className='rounded-xl border border-gray-200 p-4'>
@@ -503,6 +581,75 @@ export function BookingDetailsButton({ booking }: { booking: any }) {
 							<div className='text-sm text-gray-500'>No intake form responses submitted.</div>
 						)}
 					</div>
+				</div>
+			</Modal>
+
+			{/* Edit Amount Modal */}
+			<Modal open={showEditAmount} onClose={() => setShowEditAmount(false)} title='Edit Booking Amount'>
+				<ResultBanner result={result} />
+				<div className='space-y-4'>
+					<div className='p-3 bg-gray-50 rounded-xl text-sm'>
+						<div className='flex justify-between mb-1'>
+							<span className='text-gray-500'>Current Amount:</span>
+							<span className='font-semibold text-gray-900'>${(booking.totalCents / 100).toFixed(2)}</span>
+						</div>
+						<div className='flex justify-between'>
+							<span className='text-gray-500'>Payment Status:</span>
+							<span className={`font-medium ${booking.paymentStatus === 'PAID' ? 'text-green-600' : 'text-red-600'}`}>
+								{booking.paymentStatus}
+							</span>
+						</div>
+					</div>
+
+					<div>
+						<label className='block text-sm font-semibold text-gray-700 mb-1'>New Amount (USD) *</label>
+						<div className='relative'>
+							<span className='absolute left-3 top-1/2 -translate-y-1/2 text-gray-500'>$</span>
+							<input
+								type='number'
+								step='0.01'
+								min='0'
+								value={newAmount}
+								onChange={(e) => setNewAmount(e.target.value)}
+								className='w-full border border-gray-300 rounded-xl pl-8 pr-3 py-2.5 text-sm focus:ring-2 focus:ring-warm-400 outline-none'
+								placeholder='0.00'
+							/>
+						</div>
+					</div>
+
+					<div>
+						<label className='block text-sm font-semibold text-gray-700 mb-1'>Reason for Change *</label>
+						<textarea
+							value={changeReason}
+							onChange={(e) => setChangeReason(e.target.value)}
+							rows={3}
+							className='w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-warm-400 outline-none resize-none'
+							placeholder='Explain why the amount is being changed (e.g., "Service was not paid", "Discount applied", etc.)'
+						/>
+						<p className='text-xs text-gray-500 mt-1'>
+							This reason will be logged and visible to all staff members.
+						</p>
+					</div>
+
+					<div className='p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-800'>
+						<strong>Note:</strong> If this booking is already marked as PAID, the paid amount will be adjusted to match the new total.
+					</div>
+				</div>
+
+				<div className='flex gap-3 mt-6'>
+					<button
+						onClick={handleEditAmount}
+						disabled={isPending || !newAmount || !changeReason.trim()}
+						className='flex-1 py-2.5 bg-warm-500 text-white rounded-xl font-semibold hover:bg-warm-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2'
+					>
+						{isPending ? <><Spinner /> Saving…</> : 'Update Amount'}
+					</button>
+					<button
+						onClick={() => { setShowEditAmount(false); setResult(null); setNewAmount(''); setChangeReason('') }}
+						className='px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors'
+					>
+						Cancel
+					</button>
 				</div>
 			</Modal>
 		</>

@@ -285,6 +285,51 @@ export async function updateBookingStatus(
 	}
 }
 
+// ─── Update Booking Amount ────────────────────────────────────────────────────
+
+export async function updateBookingAmount(
+	bookingId: string,
+	newTotalCents: number,
+	reason: string,
+) {
+	try {
+		const auth = await getOwnerSession()
+		if (!auth) return { ok: false, error: 'Unauthorized' }
+
+		const booking = await prisma.booking.findUnique({
+			where: { id: bookingId },
+		})
+		if (!booking) return { ok: false, error: 'Booking not found' }
+
+		// Update the booking amount
+		await prisma.booking.update({
+			where: { id: bookingId },
+			data: {
+				totalCents: newTotalCents,
+				// If the booking was already paid, adjust the paid amount to match
+				paidCents: booking.paymentStatus === 'PAID' ? newTotalCents : booking.paidCents,
+			},
+		})
+
+		// Create a note/log entry for the change (we'll use the notes field to track this)
+		const changeNote = `Amount changed from $${(booking.totalCents / 100).toFixed(2)} to $${(newTotalCents / 100).toFixed(2)} on ${new Date().toLocaleDateString()} - ${reason}`
+		const updatedNotes = booking.notes 
+			? `${booking.notes}\n\n${changeNote}`
+			: changeNote
+
+		await prisma.booking.update({
+			where: { id: bookingId },
+			data: { notes: updatedNotes },
+		})
+
+		revalidatePath('/manager')
+		return { ok: true, message: 'Booking amount updated' }
+	} catch (error) {
+		console.error('updateBookingAmount error:', error)
+		return { ok: false, error: 'Failed to update booking amount' }
+	}
+}
+
 // ─── Staff (Employee) Management ─────────────────────────────────────────────
 
 const EmployeeInput = z.object({
