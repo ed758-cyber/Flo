@@ -21,7 +21,7 @@ async function getOwnerSession() {
 
 const ManagerBookingInput = z.object({
 	spaId: z.string(),
-	subserviceId: z.string(),
+	subserviceIds: z.array(z.string()).min(1, 'Select at least one service'),
 	employeeId: z.string().optional(),
 	start: z.string(), // "YYYY-MM-DDTHH:mm:00"
 	paymentMethod: z.enum(['CARD', 'CASH']),
@@ -39,15 +39,37 @@ export async function createBooking(
 		if (!auth) return { ok: false, error: 'Unauthorized' }
 
 		const sub = await prisma.subservice.findUnique({
-			where: { id: input.subserviceId },
+			where: { id: input.subserviceIds[0] },
 		})
 		if (!sub) return { ok: false, error: 'Invalid subservice' }
+
+		const subservices = await prisma.subservice.findMany({
+			where: {
+				id: { in: input.subserviceIds },
+				spaId: input.spaId,
+			},
+		})
+		if (subservices.length !== input.subserviceIds.length) {
+			return { ok: false, error: 'One or more selected services are invalid' }
+		}
+
+		const orderedSubservices = input.subserviceIds
+			.map((id) => subservices.find((item) => item.id === id))
+			.filter(Boolean)
 
 		const [datePart, timePart] = input.start.split('T')
 		const [year, month, day] = datePart.split('-').map(Number)
 		const [hours, minutes] = timePart.split(':').map(Number)
 		const start = new Date(year, month - 1, day, hours, minutes, 0, 0)
-		const end = new Date(start.getTime() + sub.durationMin * 60_000)
+		const totalDurationMin = orderedSubservices.reduce(
+			(total, item) => total + item!.durationMin,
+			0,
+		)
+		const totalCents = orderedSubservices.reduce(
+			(total, item) => total + item!.priceCents,
+			0,
+		)
+		const end = new Date(start.getTime() + totalDurationMin * 60_000)
 
 		if (start <= new Date()) {
 			return { ok: false, error: 'Cannot book a time in the past' }
@@ -90,15 +112,24 @@ export async function createBooking(
 				spaId: input.spaId,
 				userId,
 				employeeId: input.employeeId || null,
-				subserviceId: input.subserviceId,
+				subserviceId: orderedSubservices[0]!.id,
 				start,
 				end,
 				status: 'CONFIRMED',
 				paymentMethod: input.paymentMethod,
 				paymentStatus: 'UNPAID',
-				totalCents: sub.priceCents,
+				totalCents,
 				paidCents: 0,
 				notes: input.notes || null,
+				customerName: input.customerName || null,
+				customerEmail: input.customerEmail || null,
+				customerPhone: input.customerPhone || null,
+				BookingItems: {
+					create: orderedSubservices.map((item, index) => ({
+						subserviceId: item!.id,
+						orderIndex: index,
+					})),
+				},
 			},
 		})
 
@@ -122,7 +153,7 @@ export async function rescheduleBooking(input: {
 
 		const booking = await prisma.booking.findUnique({
 			where: { id: input.bookingId },
-			include: { subservice: true },
+			include: { BookingItems: { include: { subservice: true } }, subservice: true },
 		})
 		if (!booking) return { ok: false, error: 'Booking not found' }
 
@@ -130,9 +161,14 @@ export async function rescheduleBooking(input: {
 		const [year, month, day] = datePart.split('-').map(Number)
 		const [hours, minutes] = timePart.split(':').map(Number)
 		const newStart = new Date(year, month - 1, day, hours, minutes, 0, 0)
-		const newEnd = new Date(
-			newStart.getTime() + booking.subservice.durationMin * 60_000,
-		)
+		const durationMin =
+			booking.BookingItems.length > 0
+				? booking.BookingItems.reduce(
+					(total, item) => total + item.subservice.durationMin,
+					0,
+				)
+				: booking.subservice.durationMin
+		const newEnd = new Date(newStart.getTime() + durationMin * 60_000)
 
 		if (newStart <= new Date()) {
 			return { ok: false, error: 'Cannot reschedule to a past time' }
@@ -382,6 +418,87 @@ export async function createService(
 	}
 }
 
+export async function updateService(
+	serviceId: string,
+	data: { name?: string; description?: string },
+) {
+	try {
+		const auth = await getOwnerSession()
+		if (!auth) return { ok: false, error: 'Unauthorized' }
+
+		const service = await prisma.service.findFirst({
+			where: { id: serviceId, spa: { ownerId: auth.userId } },
+		})
+		if (!service) return { ok: false, error: 'Service not found or unauthorized' }
+
+		await prisma.service.update({
+			where: { id: serviceId },
+			data: {
+				name: data.name ?? service.name,
+				description: data.description ?? service.description,
+			},
+		})
+
+		revalidatePath('/manager')
+		return { ok: true }
+	} catch (error) {
+		return { ok: false, error: 'Failed to update service' }
+	}
+}
+
+export async function deleteService(serviceId: string) {
+	try {
+		const auth = await getOwnerSession()
+		if (!auth) return { ok: false, error: 'Unauthorized' }
+
+		const service = await prisma.service.findFirst({
+			where: {
+				id: serviceId,
+				spa: { ownerId: auth.userId },
+			},
+			include: {
+				Subservices: {
+					include: {
+						Bookings: {
+							where: {
+								status: { in: ['PENDING', 'CONFIRMED'] },
+								start: { gte: new Date() },
+							},
+							select: { id: true },
+						},
+						BookingItems: {
+							where: {
+								booking: {
+									status: { in: ['PENDING', 'CONFIRMED'] },
+									start: { gte: new Date() },
+								},
+							},
+							select: { id: true },
+						},
+					},
+				},
+			},
+		})
+		if (!service) return { ok: false, error: 'Service not found or unauthorized' }
+
+		const hasUpcomingBookings = service.Subservices.some(
+			(sub) => sub.Bookings.length > 0 || sub.BookingItems.length > 0,
+		)
+		if (hasUpcomingBookings) {
+			return {
+				ok: false,
+				error: 'Cannot delete a service category with upcoming bookings.',
+			}
+		}
+
+		await prisma.service.delete({ where: { id: serviceId } })
+		revalidatePath('/manager')
+		return { ok: true }
+	} catch (error) {
+		return { ok: false, error: 'Failed to delete service' }
+	}
+}
+
 export async function createSubservice(input: {
 	serviceId: string
 	spaId: string
@@ -412,10 +529,76 @@ export async function createSubservice(input: {
 	}
 }
 
+export async function updateSubservice(
+	subserviceId: string,
+	data: {
+		name?: string
+		description?: string
+		durationMin?: number
+		priceCents?: number
+	},
+) {
+	try {
+		const auth = await getOwnerSession()
+		if (!auth) return { ok: false, error: 'Unauthorized' }
+
+		const subservice = await prisma.subservice.findFirst({
+			where: { id: subserviceId, spa: { ownerId: auth.userId } },
+		})
+		if (!subservice) {
+			return { ok: false, error: 'Treatment not found or unauthorized' }
+		}
+
+		await prisma.subservice.update({
+			where: { id: subserviceId },
+			data: {
+				name: data.name ?? subservice.name,
+				description: data.description ?? subservice.description,
+				durationMin: data.durationMin ?? subservice.durationMin,
+				priceCents: data.priceCents ?? subservice.priceCents,
+			},
+		})
+
+		revalidatePath('/manager')
+		return { ok: true }
+	} catch (error) {
+		return { ok: false, error: 'Failed to update treatment' }
+	}
+}
+
 export async function deleteSubservice(subserviceId: string) {
 	try {
 		const auth = await getOwnerSession()
 		if (!auth) return { ok: false, error: 'Unauthorized' }
+
+		const subservice = await prisma.subservice.findFirst({
+			where: { id: subserviceId, spa: { ownerId: auth.userId } },
+			include: {
+				Bookings: {
+					where: {
+						status: { in: ['PENDING', 'CONFIRMED'] },
+						start: { gte: new Date() },
+					},
+					select: { id: true },
+				},
+				BookingItems: {
+					where: {
+						booking: {
+							status: { in: ['PENDING', 'CONFIRMED'] },
+							start: { gte: new Date() },
+						},
+					},
+					select: { id: true },
+				},
+			},
+		})
+		if (!subservice) return { ok: false, error: 'Treatment not found or unauthorized' }
+		if (subservice.Bookings.length > 0 || subservice.BookingItems.length > 0) {
+			return {
+				ok: false,
+				error: 'Cannot delete a treatment with upcoming bookings.',
+			}
+		}
 
 		await prisma.subservice.delete({ where: { id: subserviceId } })
 		revalidatePath('/manager')
@@ -437,6 +620,8 @@ export async function updateSpaSettings(
 		email?: string
 		openTime?: string
 		closeTime?: string
+		requiresBookingConsent?: boolean
+		bookingConsentText?: string
 	},
 ) {
 	try {

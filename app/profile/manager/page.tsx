@@ -3,6 +3,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { formatBookingServiceNames } from '@/lib/booking'
 
 export default async function ManagerDashboardPage() {
 	const session = await getServerSession(authOptions)
@@ -31,6 +32,16 @@ export default async function ManagerDashboardPage() {
 								},
 							},
 							employee: true,
+							BookingItems: {
+								include: {
+									subservice: {
+										include: {
+											service: true,
+										},
+									},
+								},
+								orderBy: { orderIndex: 'asc' },
+							},
 						},
 						orderBy: {
 							start: 'desc',
@@ -270,8 +281,7 @@ export default async function ManagerDashboardPage() {
 												</div>
 												<div className='text-sm text-gray-600 space-y-1'>
 													<div>
-														{booking.subservice.service.name} -{' '}
-														{booking.subservice.name}
+														{formatBookingServiceNames(booking)}
 													</div>
 													<div className='flex items-center gap-4'>
 														<span>

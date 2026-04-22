@@ -11,10 +11,15 @@ import {
 	updateEmployee,
 	deleteEmployee,
 	createService,
+	updateService,
+	deleteService,
 	createSubservice,
+	updateSubservice,
 	deleteSubservice,
 	updateSpaSettings,
 } from './actions'
+import { formatBookingServiceNames, getBookingDurationMin } from '@/lib/booking'
+import { getFilledIntakeEntries } from '@/lib/intake'
 
 // ─── Shared UI helpers ────────────────────────────────────────────────────────
 
@@ -85,7 +90,9 @@ export function CreateBookingModal({
 	const [isPending, startTransition] = useTransition()
 	const [result, setResult] = useState<any>(null)
 	const [form, setForm] = useState({
-		subserviceId: spa.Services?.[0]?.Subservices?.[0]?.id || '',
+		subserviceIds: spa.Services?.[0]?.Subservices?.[0]?.id
+			? [spa.Services[0].Subservices[0].id]
+			: [],
 		employeeId: '',
 		date: '',
 		time: '',
@@ -97,7 +104,9 @@ export function CreateBookingModal({
 	})
 
 	const subs = spa.Services?.flatMap((s: any) => s.Subservices) ?? []
-	const selectedSub = subs.find((s: any) => s.id === form.subserviceId)
+	const selectedSubs = subs.filter((s: any) => form.subserviceIds.includes(s.id))
+	const totalCents = selectedSubs.reduce((sum: number, sub: any) => sum + sub.priceCents, 0)
+	const totalDuration = selectedSubs.reduce((sum: number, sub: any) => sum + sub.durationMin, 0)
 
 	const timeSlots: string[] = []
 	for (let h = 8; h < 20; h++) {
@@ -112,16 +121,23 @@ export function CreateBookingModal({
 	}
 
 	const today = new Date().toISOString().split('T')[0]
+	const toggleSubservice = (subId: string) =>
+		setForm((current) => ({
+			...current,
+			subserviceIds: current.subserviceIds.includes(subId)
+				? current.subserviceIds.filter((id) => id !== subId)
+				: [...current.subserviceIds, subId],
+		}))
 
 	const handleSubmit = () => {
-		if (!form.date || !form.time || !form.subserviceId) {
+		if (!form.date || !form.time || form.subserviceIds.length === 0) {
 			setResult({ ok: false, error: 'Please fill in all required fields' })
 			return
 		}
 		startTransition(async () => {
 			const res = await createBooking({
 				spaId: spa.id,
-				subserviceId: form.subserviceId,
+				subserviceIds: form.subserviceIds,
 				employeeId: form.employeeId || undefined,
 				start: `${form.date}T${form.time}:00`,
 				paymentMethod: form.paymentMethod,
@@ -136,7 +152,7 @@ export function CreateBookingModal({
 					onClose()
 					setResult(null)
 					setForm({
-						subserviceId: subs[0]?.id || '',
+						subserviceIds: subs[0]?.id ? [subs[0].id] : [],
 						employeeId: '',
 						date: '',
 						time: '',
@@ -161,22 +177,49 @@ export function CreateBookingModal({
 			<div className='grid sm:grid-cols-2 gap-4'>
 				{/* Service */}
 				<div className='sm:col-span-2'>
-					<label className='block text-sm font-semibold text-gray-700 mb-1'>Service *</label>
-					<select
-						value={form.subserviceId}
-						onChange={(e) => set('subserviceId', e.target.value)}
-						className='w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-warm-400 focus:border-transparent outline-none'
-					>
+					<label className='block text-sm font-semibold text-gray-700 mb-2'>Services *</label>
+					<div className='space-y-3 max-h-72 overflow-y-auto pr-1'>
 						{spa.Services?.map((svc: any) => (
-							<optgroup key={svc.id} label={svc.name}>
-								{svc.Subservices?.map((sub: any) => (
-									<option key={sub.id} value={sub.id}>
-										{sub.name} — ${(sub.priceCents / 100).toFixed(0)} · {sub.durationMin}min
-									</option>
-								))}
-							</optgroup>
+							<div key={svc.id}>
+								<div className='text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2'>
+									{svc.name}
+								</div>
+								<div className='space-y-2'>
+									{svc.Subservices?.map((sub: any) => {
+										const checked = form.subserviceIds.includes(sub.id)
+										return (
+											<label
+												key={sub.id}
+												className={`flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition-colors ${
+													checked
+														? 'border-warm-400 bg-warm-50'
+														: 'border-gray-200 hover:border-warm-200'
+												}`}
+											>
+												<input
+													type='checkbox'
+													checked={checked}
+													onChange={() => toggleSubservice(sub.id)}
+													className='mt-1 h-4 w-4 rounded border-gray-300 text-warm-500 focus:ring-warm-400'
+												/>
+												<div className='flex-1'>
+													<div className='flex items-center justify-between gap-3'>
+														<span className='font-medium text-gray-900'>{sub.name}</span>
+														<span className='text-sm font-semibold text-warm-700'>
+															${(sub.priceCents / 100).toFixed(2)}
+														</span>
+													</div>
+													<div className='text-xs text-gray-500 mt-1'>
+														{sub.durationMin} min
+													</div>
+												</div>
+											</label>
+										)
+									})}
+								</div>
+							</div>
 						))}
-					</select>
+					</div>
 				</div>
 
 				{/* Staff */}
@@ -285,14 +328,22 @@ export function CreateBookingModal({
 			</div>
 
 			{/* Summary */}
-			{selectedSub && form.date && form.time && (
+			{selectedSubs.length > 0 && form.date && form.time && (
 				<div className='mt-4 p-3 bg-warm-50 rounded-xl border border-warm-200 text-sm'>
-					<div className='flex justify-between'>
-						<span className='text-gray-600'>{selectedSub.name}</span>
-						<span className='font-bold text-warm-700'>${(selectedSub.priceCents / 100).toFixed(2)}</span>
+					<div className='space-y-1.5'>
+						{selectedSubs.map((sub: any) => (
+							<div key={sub.id} className='flex justify-between'>
+								<span className='text-gray-600'>{sub.name}</span>
+								<span className='font-medium text-gray-900'>${(sub.priceCents / 100).toFixed(2)}</span>
+							</div>
+						))}
 					</div>
 					<div className='text-gray-500 mt-1'>
-						{form.date} at {fmtTime(form.time)} · {selectedSub.durationMin} min
+						{form.date} at {fmtTime(form.time)} · {totalDuration} min
+					</div>
+					<div className='flex justify-between mt-2 pt-2 border-t border-warm-200'>
+						<span className='font-semibold text-gray-700'>Total</span>
+						<span className='font-bold text-warm-700'>${(totalCents / 100).toFixed(2)}</span>
 					</div>
 				</div>
 			)}
@@ -300,7 +351,7 @@ export function CreateBookingModal({
 			<div className='flex gap-3 mt-6'>
 				<button
 					onClick={handleSubmit}
-					disabled={isPending || !form.date || !form.time}
+					disabled={isPending || !form.date || !form.time || form.subserviceIds.length === 0}
 					className='flex-1 py-2.5 bg-warm-500 text-white rounded-xl font-semibold hover:bg-warm-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2'
 				>
 					{isPending ? <><Spinner /> Saving…</> : 'Create Booking'}
@@ -310,6 +361,151 @@ export function CreateBookingModal({
 				</button>
 			</div>
 		</Modal>
+	)
+}
+
+export function BookingDetailsButton({ booking }: { booking: any }) {
+	const [open, setOpen] = useState(false)
+	const customerName = booking.customerName || booking.user?.name || 'Walk-in'
+	const customerEmail = booking.customerEmail || booking.user?.email || ''
+	const customerPhone = booking.customerPhone || ''
+	const serviceNames = formatBookingServiceNames(booking)
+	const intakeEntries = getFilledIntakeEntries(
+		booking.intakeForm as Record<string, string> | undefined,
+		booking.BookingItems?.length
+			? booking.BookingItems.map((item: any) => `${item.subservice.service.name} ${item.subservice.name}`)
+			: [serviceNames]
+	)
+
+	return (
+		<>
+			<button
+				onClick={() => setOpen(true)}
+				className='px-2.5 py-1 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition-colors'
+			>
+				View Details
+			</button>
+
+			<Modal open={open} onClose={() => setOpen(false)} title='Booking Details' maxWidth='max-w-2xl'>
+				<div className='space-y-6 text-sm'>
+					<div className='grid sm:grid-cols-2 gap-4'>
+						<div className='rounded-xl border border-gray-200 p-4'>
+							<div className='text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2'>
+								Customer
+							</div>
+							<div className='font-semibold text-gray-900'>{customerName}</div>
+							{customerEmail && <div className='text-gray-600 mt-1'>{customerEmail}</div>}
+							{customerPhone && <div className='text-gray-600 mt-1'>{customerPhone}</div>}
+						</div>
+						<div className='rounded-xl border border-gray-200 p-4'>
+							<div className='text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2'>
+								Appointment
+							</div>
+							<div className='font-semibold text-gray-900'>
+								{new Date(booking.start).toLocaleDateString('en-US', {
+									weekday: 'long',
+									month: 'long',
+									day: 'numeric',
+									year: 'numeric',
+								})}
+							</div>
+							<div className='text-gray-600 mt-1'>
+								{new Date(booking.start).toLocaleTimeString('en-US', {
+									hour: 'numeric',
+									minute: '2-digit',
+								})}
+								{' - '}
+								{new Date(booking.end).toLocaleTimeString('en-US', {
+									hour: 'numeric',
+									minute: '2-digit',
+								})}
+							</div>
+							<div className='text-gray-600 mt-1'>
+								{booking.employee?.name ? `Staff: ${booking.employee.name}` : 'No staff preference'}
+							</div>
+						</div>
+					</div>
+
+					<div className='rounded-xl border border-gray-200 p-4'>
+						<div className='flex items-center justify-between gap-4 mb-3'>
+							<div className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
+								Services
+							</div>
+							<div className='text-sm font-semibold text-warm-700'>
+								${(booking.totalCents / 100).toFixed(2)}
+							</div>
+						</div>
+						<div className='space-y-2'>
+							{booking.BookingItems?.length ? (
+								booking.BookingItems.map((item: any) => (
+									<div key={item.id} className='flex items-center justify-between'>
+										<div>
+											<div className='font-medium text-gray-900'>{item.subservice.name}</div>
+											<div className='text-xs text-gray-500'>
+												{item.subservice.service.name} · {item.subservice.durationMin} min
+											</div>
+										</div>
+										<div className='text-sm font-medium text-gray-700'>
+											${(item.subservice.priceCents / 100).toFixed(2)}
+										</div>
+									</div>
+								))
+							) : (
+								<div className='text-gray-700'>{serviceNames}</div>
+							)}
+						</div>
+						<div className='text-xs text-gray-500 mt-3'>
+							Total duration: {getBookingDurationMin(booking)} minutes
+						</div>
+					</div>
+
+					<div className='grid sm:grid-cols-2 gap-4'>
+						<div className='rounded-xl border border-gray-200 p-4'>
+							<div className='text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2'>
+								Customer Notes
+							</div>
+							<div className='text-gray-700 whitespace-pre-wrap'>
+								{booking.notes || 'No notes provided.'}
+							</div>
+						</div>
+						<div className='rounded-xl border border-gray-200 p-4'>
+							<div className='text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2'>
+								Liability Form
+							</div>
+							<div className='text-gray-700'>
+								{booking.consentAcceptedAt ? 'Accepted' : 'Not required / not signed'}
+							</div>
+							{booking.consentSignature && (
+								<div className='text-gray-600 mt-1'>
+									Signed as: {booking.consentSignature}
+								</div>
+							)}
+						</div>
+					</div>
+
+					<div className='rounded-xl border border-gray-200 p-4'>
+						<div className='text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3'>
+							Intake Form
+						</div>
+						{intakeEntries.length > 0 ? (
+							<div className='space-y-3'>
+								{intakeEntries.map((entry) => (
+									<div key={`${entry.sectionTitle}-${entry.label}`} className='rounded-xl bg-gray-50 p-3'>
+										<div className='text-[11px] font-semibold uppercase tracking-wide text-gray-500'>
+											{entry.sectionTitle}
+										</div>
+										<div className='text-sm font-medium text-gray-900 mt-1'>{entry.label}</div>
+										<div className='text-sm text-gray-700 mt-1 whitespace-pre-wrap'>{entry.value}</div>
+									</div>
+								))}
+							</div>
+						) : (
+							<div className='text-sm text-gray-500'>No intake form responses submitted.</div>
+						)}
+					</div>
+				</div>
+			</Modal>
+		</>
 	)
 }
 
@@ -324,6 +520,7 @@ export function BookingActionButtons({ booking }: { booking: any }) {
 	const [newDate, setNewDate] = useState('')
 	const [newTime, setNewTime] = useState('')
 	const [cancelReason, setCancelReason] = useState('')
+	const [statusValue, setStatusValue] = useState(booking.status)
 
 	const today = new Date().toISOString().split('T')[0]
 	const timeSlots: string[] = []
@@ -345,48 +542,56 @@ export function BookingActionButtons({ booking }: { booking: any }) {
 		})
 	}
 
-	if (booking.status === 'CANCELLED' || booking.status === 'COMPLETED') {
-		return <span className='text-xs text-gray-400 italic'>{booking.status.toLowerCase()}</span>
-	}
-
 	return (
 		<>
-			<div className='flex flex-wrap gap-1.5'>
-				{booking.paymentStatus !== 'PAID' && (
-					<button
-						onClick={() => run(() => markBookingPaid(booking.id))}
+			<div className='space-y-2'>
+				<div className='flex flex-wrap items-center gap-1.5'>
+					<select
+						value={statusValue}
+						onChange={(e) => setStatusValue(e.target.value)}
 						disabled={isPending}
-						className='px-2.5 py-1 text-xs bg-green-100 text-green-700 rounded-lg hover:bg-green-200 font-medium transition-colors'
+						className='rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 focus:border-warm-400 focus:outline-none focus:ring-2 focus:ring-warm-200 disabled:opacity-50'
 					>
-						Mark Paid
+						<option value='PENDING'>Pending</option>
+						<option value='CONFIRMED'>Confirmed</option>
+						<option value='COMPLETED'>Completed</option>
+						<option value='NO_SHOW'>No Show</option>
+						<option value='CANCELLED'>Cancelled</option>
+					</select>
+					<button
+						onClick={() =>
+							run(() => updateBookingStatus(booking.id, statusValue as any))
+						}
+						disabled={isPending || statusValue === booking.status}
+						className='px-2.5 py-1 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition-colors disabled:opacity-50'
+					>
+						Update Status
 					</button>
-				)}
-				<button
-					onClick={() => run(() => updateBookingStatus(booking.id, 'COMPLETED'))}
-					disabled={isPending}
-					className='px-2.5 py-1 text-xs bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-medium transition-colors'
-				>
-					Complete
-				</button>
-				<button
-					onClick={() => run(() => updateBookingStatus(booking.id, 'NO_SHOW'))}
-					disabled={isPending}
-					className='px-2.5 py-1 text-xs bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 font-medium transition-colors'
-				>
-					No Show
-				</button>
-				<button
-					onClick={() => setShowReschedule(true)}
-					className='px-2.5 py-1 text-xs bg-warm-100 text-warm-700 rounded-lg hover:bg-warm-200 font-medium transition-colors'
-				>
-					Reschedule
-				</button>
-				<button
-					onClick={() => setShowCancel(true)}
-					className='px-2.5 py-1 text-xs bg-red-100 text-red-700 rounded-lg hover:bg-red-200 font-medium transition-colors'
-				>
-					Cancel
-				</button>
+					{booking.paymentStatus !== 'PAID' && (
+						<button
+							onClick={() => run(() => markBookingPaid(booking.id))}
+							disabled={isPending}
+							className='px-2.5 py-1 text-xs bg-green-100 text-green-700 rounded-lg hover:bg-green-200 font-medium transition-colors'
+						>
+							Mark Paid
+						</button>
+					)}
+					<button
+						onClick={() => setShowReschedule(true)}
+						className='px-2.5 py-1 text-xs bg-warm-100 text-warm-700 rounded-lg hover:bg-warm-200 font-medium transition-colors'
+					>
+						Reschedule
+					</button>
+					<button
+						onClick={() => setShowCancel(true)}
+						className='px-2.5 py-1 text-xs bg-red-100 text-red-700 rounded-lg hover:bg-red-200 font-medium transition-colors'
+					>
+						Cancel
+					</button>
+				</div>
+				<div className='text-[11px] text-gray-500'>
+					Current status: <span className='font-medium text-gray-700'>{booking.status}</span>
+				</div>
 			</div>
 
 			{result && (
@@ -685,6 +890,8 @@ export function ServicesPanel({ spa }: { spa: any }) {
 	const [result, setResult] = useState<any>(null)
 	const [showAddService, setShowAddService] = useState(false)
 	const [showAddSub, setShowAddSub] = useState<string | null>(null) // serviceId
+	const [editingService, setEditingService] = useState<any | null>(null)
+	const [editingSubservice, setEditingSubservice] = useState<any | null>(null)
 	const [serviceName, setServiceName] = useState('')
 	const [serviceDesc, setServiceDesc] = useState('')
 	const [subForm, setSubForm] = useState({ name: '', description: '', durationMin: '60', priceCents: '' })
@@ -721,16 +928,36 @@ export function ServicesPanel({ spa }: { spa: any }) {
 					{spa.Services.map((svc: any) => (
 						<div key={svc.id} className='bg-gray-50 rounded-xl overflow-hidden'>
 							<div className='flex items-center justify-between px-4 py-3 bg-warm-50 border-b border-warm-100'>
-								<span className='font-semibold text-gray-900'>{svc.name}</span>
-								<button
-									onClick={() => { setSubForm({ name: '', description: '', durationMin: '60', priceCents: '' }); setShowAddSub(svc.id) }}
-									className='text-xs text-warm-600 hover:text-warm-800 font-medium flex items-center gap-1'
-								>
-									<svg className='w-3.5 h-3.5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-										<path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M12 4v16m8-8H4' />
-									</svg>
-									Add Treatment
-								</button>
+								<div>
+									<span className='font-semibold text-gray-900'>{svc.name}</span>
+									{svc.description && (
+										<div className='text-xs text-gray-500 mt-1'>{svc.description}</div>
+									)}
+								</div>
+								<div className='flex items-center gap-3'>
+									<button
+										onClick={() => { setSubForm({ name: '', description: '', durationMin: '60', priceCents: '' }); setShowAddSub(svc.id) }}
+										className='text-xs text-warm-600 hover:text-warm-800 font-medium flex items-center gap-1'
+									>
+										<svg className='w-3.5 h-3.5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+											<path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M12 4v16m8-8H4' />
+										</svg>
+										Add Treatment
+									</button>
+									<button
+										onClick={() => setEditingService(svc)}
+										className='text-xs text-gray-500 hover:text-gray-700 font-medium'
+									>
+										Edit
+									</button>
+									<button
+										onClick={() => run(() => deleteService(svc.id))}
+										disabled={isPending}
+										className='text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-40'
+									>
+										Delete
+									</button>
+								</div>
 							</div>
 							<div className='divide-y divide-gray-100'>
 								{svc.Subservices?.map((sub: any) => (
@@ -738,9 +965,20 @@ export function ServicesPanel({ spa }: { spa: any }) {
 										<div>
 											<span className='font-medium text-gray-800'>{sub.name}</span>
 											<span className='text-gray-400 ml-2'>{sub.durationMin}min</span>
+											{sub.description && (
+												<div className='text-xs text-gray-500 mt-1'>{sub.description}</div>
+											)}
 										</div>
 										<div className='flex items-center gap-3'>
 											<span className='font-semibold text-warm-700'>${(sub.priceCents / 100).toFixed(2)}</span>
+											<button
+												onClick={() => setEditingSubservice(sub)}
+												className='text-gray-400 hover:text-gray-600 transition-colors'
+											>
+												<svg className='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+													<path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z' />
+												</svg>
+											</button>
 											<button
 												onClick={() => run(() => deleteSubservice(sub.id))}
 												disabled={isPending}
@@ -848,6 +1086,110 @@ export function ServicesPanel({ spa }: { spa: any }) {
 					</div>
 				</div>
 			</Modal>
+
+			<Modal open={!!editingService} onClose={() => setEditingService(null)} title='Edit Service Category'>
+				<div className='space-y-4'>
+					<div>
+						<label className='block text-sm font-semibold text-gray-700 mb-1'>Category Name *</label>
+						<input
+							type='text'
+							value={editingService?.name || ''}
+							onChange={(e) => setEditingService((current: any) => ({ ...current, name: e.target.value }))}
+							className='w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-warm-400 outline-none'
+						/>
+					</div>
+					<div>
+						<label className='block text-sm font-semibold text-gray-700 mb-1'>Description</label>
+						<textarea
+							value={editingService?.description || ''}
+							onChange={(e) => setEditingService((current: any) => ({ ...current, description: e.target.value }))}
+							rows={2}
+							className='w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-warm-400 outline-none resize-none'
+						/>
+					</div>
+					<div className='flex gap-3'>
+						<button
+							onClick={() => run(
+								() => updateService(editingService.id, {
+									name: editingService.name,
+									description: editingService.description,
+								}),
+								() => setEditingService(null)
+							)}
+							disabled={isPending || !editingService?.name}
+							className='flex-1 py-2.5 bg-warm-500 text-white rounded-xl font-semibold hover:bg-warm-600 disabled:opacity-50 flex items-center justify-center gap-2'
+						>
+							{isPending ? <><Spinner /> Saving…</> : 'Save Category'}
+						</button>
+						<button onClick={() => setEditingService(null)} className='px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200'>Cancel</button>
+					</div>
+				</div>
+			</Modal>
+
+			<Modal open={!!editingSubservice} onClose={() => setEditingSubservice(null)} title='Edit Treatment'>
+				<div className='space-y-4'>
+					<div>
+						<label className='block text-sm font-semibold text-gray-700 mb-1'>Treatment Name *</label>
+						<input
+							type='text'
+							value={editingSubservice?.name || ''}
+							onChange={(e) => setEditingSubservice((current: any) => ({ ...current, name: e.target.value }))}
+							className='w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-warm-400 outline-none'
+						/>
+					</div>
+					<div>
+						<label className='block text-sm font-semibold text-gray-700 mb-1'>Description</label>
+						<textarea
+							value={editingSubservice?.description || ''}
+							onChange={(e) => setEditingSubservice((current: any) => ({ ...current, description: e.target.value }))}
+							rows={2}
+							className='w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-warm-400 outline-none resize-none'
+						/>
+					</div>
+					<div className='grid grid-cols-2 gap-3'>
+						<div>
+							<label className='block text-sm font-semibold text-gray-700 mb-1'>Duration (min) *</label>
+							<input
+								type='number'
+								min='15'
+								step='15'
+								value={editingSubservice?.durationMin || ''}
+								onChange={(e) => setEditingSubservice((current: any) => ({ ...current, durationMin: e.target.value }))}
+								className='w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-warm-400 outline-none'
+							/>
+						</div>
+						<div>
+							<label className='block text-sm font-semibold text-gray-700 mb-1'>Price (USD) *</label>
+							<input
+								type='number'
+								min='0'
+								step='0.01'
+								value={editingSubservice ? (editingSubservice.priceCents / 100).toFixed(2) : ''}
+								onChange={(e) => setEditingSubservice((current: any) => ({ ...current, priceCents: Math.round(parseFloat(e.target.value || '0') * 100) }))}
+								className='w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-warm-400 outline-none'
+							/>
+						</div>
+					</div>
+					<div className='flex gap-3'>
+						<button
+							onClick={() => run(
+								() => updateSubservice(editingSubservice.id, {
+									name: editingSubservice.name,
+									description: editingSubservice.description,
+									durationMin: parseInt(String(editingSubservice.durationMin), 10),
+									priceCents: editingSubservice.priceCents,
+								}),
+								() => setEditingSubservice(null)
+							)}
+							disabled={isPending || !editingSubservice?.name}
+							className='flex-1 py-2.5 bg-warm-500 text-white rounded-xl font-semibold hover:bg-warm-600 disabled:opacity-50 flex items-center justify-center gap-2'
+						>
+							{isPending ? <><Spinner /> Saving…</> : 'Save Treatment'}
+						</button>
+						<button onClick={() => setEditingSubservice(null)} className='px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200'>Cancel</button>
+					</div>
+				</div>
+			</Modal>
 		</div>
 	)
 }
@@ -864,9 +1206,13 @@ export function SpaSettingsPanel({ spa }: { spa: any }) {
 		address: spa.address || '',
 		phone: spa.phone || '',
 		email: spa.email || '',
+		requiresBookingConsent: Boolean(spa.requiresBookingConsent),
+		bookingConsentText:
+			spa.bookingConsentText ||
+			'I understand the risks associated with this treatment and release the spa from liability except where prohibited by law.',
 	})
 
-	const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }))
+	const set = (k: string, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }))
 
 	const handleSave = () => {
 		startTransition(async () => {
@@ -907,6 +1253,29 @@ export function SpaSettingsPanel({ spa }: { spa: any }) {
 					<label className='block text-sm font-semibold text-gray-700 mb-1'>Email</label>
 					<input type='email' value={form.email} onChange={(e) => set('email', e.target.value)}
 						className='w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-warm-400 outline-none' />
+				</div>
+				<div className='rounded-xl border border-gray-200 p-4 space-y-3'>
+					<label className='flex items-start gap-3'>
+						<input
+							type='checkbox'
+							checked={form.requiresBookingConsent}
+							onChange={(e) => set('requiresBookingConsent', e.target.checked)}
+							className='mt-1 h-4 w-4 rounded border-gray-300 text-warm-500 focus:ring-warm-400'
+						/>
+						<div>
+							<div className='text-sm font-semibold text-gray-800'>Require liability form before booking</div>
+							<div className='text-xs text-gray-500 mt-1'>
+								Customers must sign before confirming an appointment.
+							</div>
+						</div>
+					</label>
+					<textarea
+						value={form.bookingConsentText}
+						onChange={(e) => set('bookingConsentText', e.target.value)}
+						rows={4}
+						disabled={!form.requiresBookingConsent}
+						className='w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-warm-400 outline-none resize-none disabled:bg-gray-50 disabled:text-gray-400'
+					/>
 				</div>
 				<button
 					onClick={handleSave}

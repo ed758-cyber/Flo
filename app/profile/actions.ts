@@ -113,6 +113,11 @@ export async function rescheduleBooking(input: z.infer<typeof RescheduleInput>) 
 			include: {
 				spa: true,
 				subservice: true, // ← BUG FIX: was missing; caused runtime crash on booking.subservice.durationMin
+				BookingItems: {
+					include: {
+						subservice: true,
+					},
+				},
 			},
 		})
 
@@ -128,7 +133,11 @@ export async function rescheduleBooking(input: z.infer<typeof RescheduleInput>) 
 		const [hours, minutes] = timePart.split(':').map(Number)
 
 		const newStart = new Date(year, month - 1, day, hours, minutes, 0, 0)
-		const newEnd = new Date(newStart.getTime() + booking.subservice.durationMin * 60_000)
+		const durationMin =
+			booking.BookingItems.length > 0
+				? booking.BookingItems.reduce((sum, item) => sum + item.subservice.durationMin, 0)
+				: booking.subservice.durationMin
+		const newEnd = new Date(newStart.getTime() + durationMin * 60_000)
 
 		if (newStart <= new Date()) {
 			return { ok: false, error: 'Cannot reschedule to a past date/time' }
@@ -177,6 +186,11 @@ export async function getCustomerStats(userId: string) {
 			where: { userId },
 			include: {
 				subservice: { include: { service: true } },
+				BookingItems: {
+					include: {
+						subservice: { include: { service: true } },
+					},
+				},
 				spa: true,
 				employee: true,
 			},
@@ -192,9 +206,15 @@ export async function getCustomerStats(userId: string) {
 		// Favorite services
 		const serviceCounts = new Map<string, { name: string; count: number }>()
 		completedBookings.forEach((b) => {
-			const id = b.subservice.serviceId
-			const prev = serviceCounts.get(id) || { name: b.subservice.service.name, count: 0 }
-			serviceCounts.set(id, { name: prev.name, count: prev.count + 1 })
+			const items =
+				b.BookingItems.length > 0
+					? b.BookingItems.map((item) => item.subservice)
+					: [b.subservice]
+			items.forEach((item) => {
+				const id = item.serviceId
+				const prev = serviceCounts.get(id) || { name: item.service.name, count: 0 }
+				serviceCounts.set(id, { name: prev.name, count: prev.count + 1 })
+			})
 		})
 		const favoriteServices = Array.from(serviceCounts.values())
 			.sort((a, b) => b.count - a.count)

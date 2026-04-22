@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getCustomerStats } from './actions'
 import { CancelBookingButton, RescheduleBookingButton } from './components'
+import { formatBookingServiceNames } from '@/lib/booking'
 
 export default async function ProfilePage() {
 	const session = await getServerSession(authOptions)
@@ -23,6 +24,16 @@ export default async function ProfilePage() {
 						include: {
 							service: true,
 						},
+					},
+					BookingItems: {
+						include: {
+							subservice: {
+								include: {
+									service: true,
+								},
+							},
+						},
+						orderBy: { orderIndex: 'asc' },
 					},
 					employee: true,
 				},
@@ -266,8 +277,7 @@ export default async function ProfilePage() {
 															/>
 														</svg>
 														<span className='font-medium'>
-															{booking.subservice.service.name} -{' '}
-															{booking.subservice.name}
+															{formatBookingServiceNames(booking)}
 														</span>
 													</div>
 													{booking.employee && (
@@ -286,6 +296,11 @@ export default async function ProfilePage() {
 																/>
 															</svg>
 															<span>With {booking.employee.name}</span>
+														</div>
+													)}
+													{booking.notes && (
+														<div className='rounded-lg bg-warm-50 px-3 py-2 text-xs text-gray-600'>
+															Notes: {booking.notes}
 														</div>
 													)}
 												</div>
@@ -368,8 +383,7 @@ export default async function ProfilePage() {
 														)}
 													</div>
 													<div>
-														{booking.subservice.service.name} -{' '}
-														{booking.subservice.name}
+														{formatBookingServiceNames(booking)}
 													</div>
 												</div>
 											</div>

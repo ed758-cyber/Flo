@@ -7,11 +7,14 @@ import { authOptions } from '@/lib/auth'
 
 const BookingInput = z.object({
 	spaId: z.string(),
-	subserviceId: z.string(),
+	subserviceIds: z.array(z.string()).min(1, 'Select at least one service'),
 	employeeId: z.string().optional(),
 	start: z.string(),
 	paymentMethod: z.enum(['CARD', 'CASH']),
 	payType: z.enum(['FULL', 'DEPOSIT']).default('FULL'),
+	notes: z.string().optional(),
+	consentSignature: z.string().optional(),
+	intakeForm: z.record(z.string(), z.string()).optional(),
 })
 
 export async function createBooking(input: z.infer<typeof BookingInput>) {
@@ -19,10 +22,36 @@ export async function createBooking(input: z.infer<typeof BookingInput>) {
 		const session = await getServerSession(authOptions)
 		const userId = (session?.user as any)?.id ?? null
 
-		const sub = await prisma.subservice.findUnique({
-			where: { id: input.subserviceId },
+		const spa = await prisma.spa.findUnique({
+			where: { id: input.spaId },
+			select: {
+				id: true,
+				requiresBookingConsent: true,
+				bookingConsentText: true,
+			},
 		})
-		if (!sub) return { ok: false, error: 'Invalid subservice' }
+		if (!spa) return { ok: false, error: 'Spa not found' }
+
+		const subservices = await prisma.subservice.findMany({
+			where: {
+				id: { in: input.subserviceIds },
+				spaId: input.spaId,
+			},
+			include: {
+				service: true,
+			},
+		})
+		if (subservices.length !== input.subserviceIds.length) {
+			return { ok: false, error: 'One or more selected services are invalid' }
+		}
+
+		const orderedSubservices = input.subserviceIds
+			.map((id) => subservices.find((sub) => sub.id === id))
+			.filter(Boolean)
+
+		if (orderedSubservices.length === 0) {
+			return { ok: false, error: 'Select at least one service' }
+		}
 
 		// Parse datetime string as local time (avoids UTC timezone shift)
 		const [datePart, timePart] = input.start.split('T')
@@ -30,12 +59,29 @@ export async function createBooking(input: z.infer<typeof BookingInput>) {
 		const [hours, minutes] = timePart.split(':').map(Number)
 
 		const start = new Date(year, month - 1, day, hours, minutes, 0, 0)
-		const end = new Date(start.getTime() + sub.durationMin * 60_000)
-		const totalCents = sub.priceCents
+		const totalDurationMin = orderedSubservices.reduce(
+			(total, sub) => total + sub!.durationMin,
+			0,
+		)
+		const end = new Date(start.getTime() + totalDurationMin * 60_000)
+		const totalCents = orderedSubservices.reduce(
+			(total, sub) => total + sub!.priceCents,
+			0,
+		)
 
 		// Validate start is in the future
 		if (start <= new Date()) {
 			return { ok: false, error: 'Cannot book a time in the past' }
+		}
+
+		if (
+			spa.requiresBookingConsent &&
+			(!input.consentSignature || !input.consentSignature.trim())
+		) {
+			return {
+				ok: false,
+				error: 'Please sign the required spa consent form before booking.',
+			}
 		}
 
 		// Check overlap
@@ -58,7 +104,7 @@ export async function createBooking(input: z.infer<typeof BookingInput>) {
 				spaId: input.spaId,
 				userId,
 				employeeId: input.employeeId,
-				subserviceId: input.subserviceId,
+				subserviceId: orderedSubservices[0]!.id,
 				start,
 				end,
 				// CASH: confirmed immediately, payment collected on site
@@ -68,6 +114,21 @@ export async function createBooking(input: z.infer<typeof BookingInput>) {
 				paymentStatus: 'UNPAID',
 				totalCents,
 				paidCents: 0, // BUG FIX: always 0 until actually paid
+				notes: input.notes?.trim() || null,
+				intakeForm: input.intakeForm || undefined,
+				customerName: session?.user?.name || null,
+				customerEmail: session?.user?.email || null,
+				consentAcceptedAt: spa.requiresBookingConsent ? new Date() : null,
+				consentSignature:
+					spa.requiresBookingConsent && input.consentSignature
+						? input.consentSignature.trim()
+						: null,
+				BookingItems: {
+					create: orderedSubservices.map((sub, index) => ({
+						subserviceId: sub!.id,
+						orderIndex: index,
+					})),
+				},
 			},
 		})
 

@@ -4,6 +4,7 @@ import { createBooking } from './actions'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { formatInputDate, createLocalDateTime } from '@/lib/dates'
+import { getIntakeSections } from '@/lib/intake'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,40 @@ function isSameDay(a: Date, b: Date) {
 
 function toDateStr(d: Date) {
 	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function Modal({
+	open,
+	onClose,
+	title,
+	children,
+}: {
+	open: boolean
+	onClose: () => void
+	title: string
+	children: React.ReactNode
+}) {
+	if (!open) return null
+
+	return (
+		<div className='fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm'>
+			<div className='w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white shadow-2xl'>
+				<div className='flex items-center justify-between border-b border-gray-100 px-6 py-4'>
+					<h3 className='text-lg font-bold text-gray-900'>{title}</h3>
+					<button
+						type='button'
+						onClick={onClose}
+						className='rounded-full p-2 text-gray-500 transition-colors hover:bg-gray-100'
+					>
+						<svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+							<path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M6 18L18 6M6 6l12 12' />
+						</svg>
+					</button>
+				</div>
+				<div className='p-6'>{children}</div>
+			</div>
+		</div>
+	)
 }
 
 // ─── Google-Calendar-style date picker ──────────────────────────────────────
@@ -299,17 +334,57 @@ export default function BookClient({
 }) {
 	const router = useRouter()
 	const subs = useMemo(() => spa.Services.flatMap((s: any) => s.Subservices), [spa])
+	const initialSubIds = useMemo(
+		() => (preselectedServiceId ? [preselectedServiceId] : subs[0]?.id ? [subs[0].id] : []),
+		[preselectedServiceId, subs]
+	)
 
-	const [subId, setSubId] = useState(preselectedServiceId || subs[0]?.id || '')
+	const [selectedSubIds, setSelectedSubIds] = useState<string[]>(initialSubIds)
 	const [employeeId, setEmployeeId] = useState('')
 	const [date, setDate] = useState('')
 	const [time, setTime] = useState('')
 	const [method, setMethod] = useState<'CARD' | 'CASH'>('CASH')
+	const [notes, setNotes] = useState('')
+	const [consentSignature, setConsentSignature] = useState('')
+	const [showIntakeModal, setShowIntakeModal] = useState(false)
+	const [intakeForm, setIntakeForm] = useState<Record<string, string>>({})
 	const [loading, setLoading] = useState(false)
 	const [error, setError] = useState('')
 	const [step, setStep] = useState<1 | 2 | 3>(1) // 1=service, 2=datetime, 3=confirm
 
-	const selectedSub = useMemo(() => subs.find((s: any) => s.id === subId), [subs, subId])
+	const selectedSubs = useMemo(
+		() => subs.filter((s: any) => selectedSubIds.includes(s.id)),
+		[subs, selectedSubIds]
+	)
+	const totalDurationMin = useMemo(
+		() => selectedSubs.reduce((sum: number, sub: any) => sum + sub.durationMin, 0),
+		[selectedSubs]
+	)
+	const totalCents = useMemo(
+		() => selectedSubs.reduce((sum: number, sub: any) => sum + sub.priceCents, 0),
+		[selectedSubs]
+	)
+	const selectedEmployee = useMemo(
+		() => spa.Employees.find((employee: any) => employee.id === employeeId),
+		[spa.Employees, employeeId]
+	)
+	const intakeSections = useMemo(
+		() => getIntakeSections(selectedSubs.map((sub: any) => `${sub.service?.name || ''} ${sub.name}`.trim())),
+		[selectedSubs]
+	)
+	const intakeCompletedCount = useMemo(
+		() =>
+			intakeSections
+				.flatMap((section) => section.questions)
+				.filter((question) => intakeForm[question.id]?.trim()).length,
+		[intakeForm, intakeSections]
+	)
+	const toggleSubservice = (subId: string) =>
+		setSelectedSubIds((current) =>
+			current.includes(subId)
+				? current.filter((id) => id !== subId)
+				: [...current, subId]
+		)
 
 	// Reset time when date changes
 	const handleDateSelect = (d: string) => {
@@ -324,11 +399,14 @@ export default function BookClient({
 		try {
 			const res = await createBooking({
 				spaId: spa.id,
-				subserviceId: subId,
+				subserviceIds: selectedSubIds,
 				employeeId: employeeId || undefined,
 				start: `${date}T${time}:00`,
 				paymentMethod: method,
 				payType: 'FULL',
+				notes,
+				consentSignature: spa.requiresBookingConsent ? consentSignature : undefined,
+				intakeForm,
 			})
 			if (res.ok) {
 				router.push('/profile')
@@ -425,35 +503,60 @@ export default function BookClient({
 									</h3>
 									<div className='grid sm:grid-cols-2 gap-3'>
 										{service.Subservices.map((sub: any) => (
-											<button
+											<label
 												key={sub.id}
-												type='button'
-												onClick={() => setSubId(sub.id)}
-												className={`text-left p-4 rounded-xl border-2 transition-all ${
-													subId === sub.id
+												className={`text-left p-4 rounded-xl border-2 transition-all cursor-pointer ${
+													selectedSubIds.includes(sub.id)
 														? 'border-warm-500 bg-warm-50 shadow-md'
 														: 'border-gray-200 hover:border-warm-300 hover:bg-gray-50'
 												}`}
 											>
-												<div className='flex items-start justify-between mb-2'>
-													<span className='font-semibold text-gray-900'>{sub.name}</span>
-													<span className='text-warm-600 font-bold text-lg ml-2'>
-														${(sub.priceCents / 100).toFixed(0)}
-													</span>
+												<div className='flex items-start gap-3'>
+													<input
+														type='checkbox'
+														checked={selectedSubIds.includes(sub.id)}
+														onChange={() => toggleSubservice(sub.id)}
+														className='mt-1 h-4 w-4 rounded border-gray-300 text-warm-500 focus:ring-warm-400'
+													/>
+													<div className='flex-1'>
+														<div className='flex items-start justify-between mb-2'>
+															<span className='font-semibold text-gray-900'>{sub.name}</span>
+															<span className='text-warm-600 font-bold text-lg ml-2'>
+																${(sub.priceCents / 100).toFixed(0)}
+															</span>
+														</div>
+														<p className='text-xs text-gray-500 mb-3 line-clamp-2'>{sub.description}</p>
+														<div className='flex items-center gap-1.5 text-xs text-gray-600'>
+															<svg className='w-3.5 h-3.5 text-warm-500' fill='currentColor' viewBox='0 0 20 20'>
+																<path fillRule='evenodd' d='M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z' clipRule='evenodd' />
+															</svg>
+															{sub.durationMin} min
+														</div>
+													</div>
 												</div>
-												<p className='text-xs text-gray-500 mb-3 line-clamp-2'>{sub.description}</p>
-												<div className='flex items-center gap-1.5 text-xs text-gray-600'>
-													<svg className='w-3.5 h-3.5 text-warm-500' fill='currentColor' viewBox='0 0 20 20'>
-														<path fillRule='evenodd' d='M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z' clipRule='evenodd' />
-													</svg>
-													{sub.durationMin} min
-												</div>
-											</button>
+											</label>
 										))}
 									</div>
 								</div>
 							))}
 						</div>
+
+						{selectedSubs.length > 0 && (
+							<div className='mt-6 rounded-2xl border border-warm-200 bg-warm-50 p-4'>
+								<div className='flex items-center justify-between gap-4'>
+									<div>
+										<div className='text-sm font-semibold text-gray-900'>Booking summary</div>
+										<div className='text-sm text-gray-600 mt-1'>
+											{selectedSubs.length} service{selectedSubs.length > 1 ? 's' : ''} selected
+										</div>
+									</div>
+									<div className='text-right'>
+										<div className='text-lg font-bold text-warm-700'>${(totalCents / 100).toFixed(2)}</div>
+										<div className='text-xs text-gray-500'>{totalDurationMin} minutes total</div>
+									</div>
+								</div>
+							</div>
+						)}
 
 						{/* Employee selection */}
 						{spa.Employees.length > 0 && (
@@ -489,13 +592,35 @@ export default function BookClient({
 										</button>
 									))}
 								</div>
+								{selectedEmployee && (
+									<div className='mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4'>
+										<div className='font-semibold text-gray-900'>{selectedEmployee.name}</div>
+										{selectedEmployee.bio && (
+											<p className='text-sm text-gray-600 mt-1'>{selectedEmployee.bio}</p>
+										)}
+										<div className='flex flex-wrap gap-2 mt-3'>
+											{selectedEmployee.services?.length > 0 ? (
+												selectedEmployee.services.map((service: any) => (
+													<span
+														key={service.id}
+														className='px-3 py-1 rounded-full bg-white text-xs font-medium text-warm-700 border border-warm-200'
+													>
+														{service.name}
+													</span>
+												))
+											) : (
+												<span className='text-xs text-gray-500'>Staff profile coming soon</span>
+											)}
+										</div>
+									</div>
+								)}
 							</div>
 						)}
 
 						<div className='mt-8 flex justify-end'>
 							<button
 								type='button'
-								disabled={!subId}
+								disabled={selectedSubIds.length === 0}
 								onClick={() => setStep(2)}
 								className='px-8 py-3 bg-warm-500 text-white rounded-xl font-semibold hover:bg-warm-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2'
 							>
@@ -519,7 +644,7 @@ export default function BookClient({
 									selectedDate={date}
 									onSelect={handleDateSelect}
 									bookedSlots={spa.Bookings}
-									durationMin={selectedSub?.durationMin || 60}
+									durationMin={totalDurationMin || 60}
 									selectedTime={time}
 									employeeId={employeeId}
 								/>
@@ -541,7 +666,7 @@ export default function BookClient({
 											selectedTime={time}
 											onSelect={setTime}
 											bookedSlots={spa.Bookings}
-											durationMin={selectedSub?.durationMin || 60}
+											durationMin={totalDurationMin || 60}
 											employeeId={employeeId}
 										/>
 									</div>
@@ -598,16 +723,25 @@ export default function BookClient({
 										<div className='font-semibold text-gray-900'>{spa.name}</div>
 									</div>
 									<div>
-										<div className='text-xs text-gray-500 uppercase tracking-wide mb-1'>Service</div>
-										<div className='font-semibold text-gray-900'>{selectedSub?.name}</div>
-										<div className='text-sm text-gray-500'>{selectedSub?.durationMin} minutes</div>
+										<div className='text-xs text-gray-500 uppercase tracking-wide mb-1'>Services</div>
+										<div className='space-y-1'>
+											{selectedSubs.map((sub: any) => (
+												<div key={sub.id} className='font-semibold text-gray-900'>
+													{sub.name}
+												</div>
+											))}
+										</div>
+										<div className='text-sm text-gray-500'>{totalDurationMin} minutes total</div>
 									</div>
 									{employeeId && (
 										<div>
 											<div className='text-xs text-gray-500 uppercase tracking-wide mb-1'>Therapist</div>
 											<div className='font-semibold text-gray-900'>
-												{spa.Employees.find((e: any) => e.id === employeeId)?.name}
+												{selectedEmployee?.name}
 											</div>
+											{selectedEmployee?.bio && (
+												<div className='text-sm text-gray-500 mt-1'>{selectedEmployee.bio}</div>
+											)}
 										</div>
 									)}
 								</div>
@@ -625,12 +759,70 @@ export default function BookClient({
 									<div>
 										<div className='text-xs text-gray-500 uppercase tracking-wide mb-1'>Total</div>
 										<div className='text-2xl font-bold text-warm-600'>
-											${selectedSub ? (selectedSub.priceCents / 100).toFixed(2) : '0.00'}
+											${(totalCents / 100).toFixed(2)}
 										</div>
 									</div>
 								</div>
 							</div>
 						</div>
+
+						<div className='mb-8'>
+							<h3 className='text-sm font-semibold text-gray-700 mb-3'>Booking Notes</h3>
+							<textarea
+								value={notes}
+								onChange={(e) => setNotes(e.target.value)}
+								rows={4}
+								placeholder='Share any allergies, sensitivities, accessibility needs, or anything the spa should know.'
+								className='w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-warm-400 outline-none resize-none'
+							/>
+						</div>
+
+						<div className='mb-8 rounded-2xl border border-gray-200 p-5 bg-white'>
+							<div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+								<div>
+									<h3 className='text-sm font-semibold text-gray-700'>Health Notes & Intake Form</h3>
+									<p className='text-sm text-gray-500 mt-1'>
+										Add allergies, sensitivities, medical notes, and service-specific details in one place.
+									</p>
+								</div>
+								<button
+									type='button'
+									onClick={() => setShowIntakeModal(true)}
+									className='inline-flex items-center justify-center rounded-xl bg-warm-100 px-4 py-2.5 text-sm font-semibold text-warm-700 transition-colors hover:bg-warm-200'
+								>
+									{intakeCompletedCount > 0 ? 'Edit intake form' : 'Open intake form'}
+								</button>
+							</div>
+							<div className='mt-4 flex items-center justify-between rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-sm'>
+								<span className='text-gray-600'>
+									{intakeCompletedCount > 0
+										? `${intakeCompletedCount} intake responses saved for this booking`
+										: 'No intake responses added yet'}
+								</span>
+								<span className='font-medium text-gray-500'>
+									{intakeSections.length} section{intakeSections.length > 1 ? 's' : ''}
+								</span>
+							</div>
+						</div>
+
+						{spa.requiresBookingConsent && (
+							<div className='mb-8 rounded-2xl border border-gray-200 p-5 bg-gray-50'>
+								<h3 className='text-sm font-semibold text-gray-700 mb-3'>Required Spa Consent Form</h3>
+								<p className='text-sm text-gray-600 whitespace-pre-wrap'>
+									{spa.bookingConsentText}
+								</p>
+								<div className='mt-4'>
+									<label className='block text-sm font-semibold text-gray-700 mb-1'>Type your full name as your signature</label>
+									<input
+										type='text'
+										value={consentSignature}
+										onChange={(e) => setConsentSignature(e.target.value)}
+										placeholder='Your full legal name'
+										className='w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-warm-400 outline-none'
+									/>
+								</div>
+							</div>
+						)}
 
 						{/* Payment method */}
 						<div className='mb-8'>
@@ -683,7 +875,7 @@ export default function BookClient({
 							<button
 								type='button'
 								onClick={handleBooking}
-								disabled={loading}
+								disabled={loading || selectedSubIds.length === 0 || (spa.requiresBookingConsent && !consentSignature.trim())}
 								className='flex-1 max-w-xs px-8 py-3 bg-gradient-to-r from-warm-400 to-nude-400 text-white rounded-xl font-bold shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100'
 							>
 								{loading ? (
@@ -700,6 +892,100 @@ export default function BookClient({
 					</div>
 				)}
 			</div>
+
+			<Modal open={showIntakeModal} onClose={() => setShowIntakeModal(false)} title='Customer Intake Form'>
+				<div className='space-y-6'>
+					<p className='text-sm text-gray-600'>
+						Please complete any details that apply. This helps the spa prepare safely for your appointment and lets the owner review important information like allergies or sensitivities.
+					</p>
+					{intakeSections.map((section) => (
+						<div key={section.id} className='rounded-2xl border border-gray-200 p-5'>
+							<div className='mb-4'>
+								<h4 className='font-semibold text-gray-900'>{section.title}</h4>
+								<p className='text-sm text-gray-500 mt-1'>{section.description}</p>
+							</div>
+							<div className='space-y-4'>
+								{section.questions.map((question) => (
+									<div key={question.id}>
+										<label className='block text-sm font-semibold text-gray-700 mb-1.5'>
+											{question.label}
+										</label>
+										{question.type === 'textarea' ? (
+											<textarea
+												value={intakeForm[question.id] || ''}
+												onChange={(e) =>
+													setIntakeForm((current) => ({
+														...current,
+														[question.id]: e.target.value,
+													}))
+												}
+												rows={3}
+												placeholder={question.placeholder}
+												className='w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-warm-400 focus:ring-2 focus:ring-warm-200 resize-none'
+											/>
+										) : question.type === 'yesno' ? (
+											<select
+												value={intakeForm[question.id] || ''}
+												onChange={(e) =>
+													setIntakeForm((current) => ({
+														...current,
+														[question.id]: e.target.value,
+													}))
+												}
+												className='w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-warm-400 focus:ring-2 focus:ring-warm-200'
+											>
+												<option value=''>Select an option</option>
+												<option value='Yes'>Yes</option>
+												<option value='No'>No</option>
+											</select>
+										) : question.type === 'select' ? (
+											<select
+												value={intakeForm[question.id] || ''}
+												onChange={(e) =>
+													setIntakeForm((current) => ({
+														...current,
+														[question.id]: e.target.value,
+													}))
+												}
+												className='w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-warm-400 focus:ring-2 focus:ring-warm-200'
+											>
+												<option value=''>Select an option</option>
+												{question.options?.map((option) => (
+													<option key={option} value={option}>
+														{option}
+													</option>
+												))}
+											</select>
+										) : (
+											<input
+												type='text'
+												value={intakeForm[question.id] || ''}
+												onChange={(e) =>
+													setIntakeForm((current) => ({
+														...current,
+														[question.id]: e.target.value,
+													}))
+												}
+												placeholder={question.placeholder}
+												className='w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-warm-400 focus:ring-2 focus:ring-warm-200'
+											/>
+										)}
+									</div>
+								))}
+							</div>
+						</div>
+					))}
+					<div className='flex justify-end gap-3'>
+						<button
+							type='button'
+							onClick={() => setShowIntakeModal(false)}
+							className='rounded-xl bg-gray-100 px-5 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200'
+						>
+							Done
+						</button>
+					</div>
+				</div>
+			</Modal>
 		</div>
 	)
 }

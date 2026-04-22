@@ -5,11 +5,14 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
 	BookingActionButtons,
+	BookingDetailsButton,
+	NewBookingButton,
 	StaffPanel,
 	ServicesPanel,
 	SpaSettingsPanel,
 	ContactButton,
 } from './components'
+import { formatBookingServiceNames, getBookingDurationMin } from '@/lib/booking'
 
 export default async function ManagerDashboardPage({
 	searchParams,
@@ -31,6 +34,16 @@ export default async function ManagerDashboardPage({
 							user: true,
 							subservice: { include: { service: true } },
 							employee: true,
+							BookingItems: {
+								include: {
+									subservice: {
+										include: {
+											service: true,
+										},
+									},
+								},
+								orderBy: { orderIndex: 'asc' },
+							},
 						},
 						orderBy: { start: 'desc' },
 					},
@@ -114,6 +127,7 @@ export default async function ManagerDashboardPage({
 							{spa.address && <p className='text-warm-100 text-sm'>{spa.address}</p>}
 						</div>
 					<div className='flex gap-3'>
+						<NewBookingButton spa={spa} />
 						<ContactButton />
 						<Link
 							href='/manager/home'
@@ -201,8 +215,12 @@ export default async function ManagerDashboardPage({
 														{b.user?.email && <div className='text-xs text-gray-400 truncate max-w-[140px]'>{b.user.email}</div>}
 													</td>
 													<td className='px-6 py-4'>
-														<div className='text-gray-800'>{b.subservice.name}</div>
-														<div className='text-xs text-gray-400'>{b.subservice.service.name} · {b.subservice.durationMin}min</div>
+														<div className='text-gray-800'>
+															{formatBookingServiceNames(b)}
+														</div>
+														<div className='text-xs text-gray-400'>
+															{getBookingDurationMin(b)}min total
+														</div>
 													</td>
 													<td className='px-6 py-4'>
 														<div className='text-gray-800 font-medium'>
@@ -225,7 +243,10 @@ export default async function ManagerDashboardPage({
 														</span>
 													</td>
 													<td className='px-6 py-4'>
-														<BookingActionButtons booking={b} />
+														<div className='flex flex-col items-start gap-2'>
+															<BookingDetailsButton booking={b} />
+															<BookingActionButtons booking={b} />
+														</div>
 													</td>
 												</tr>
 											))}
@@ -256,16 +277,21 @@ export default async function ManagerDashboardPage({
 										<tbody className='divide-y divide-gray-100'>
 											{pastBookings.slice(0, 25).map((b) => (
 												<tr key={b.id} className='hover:bg-gray-50'>
-													<td className='px-6 py-3 text-gray-700'>{b.user?.name || 'Walk-in'}</td>
-													<td className='px-6 py-3 text-gray-600'>{b.subservice.name}</td>
+													<td className='px-6 py-3 text-gray-700'>
+														{b.customerName || b.user?.name || 'Walk-in'}
+													</td>
+													<td className='px-6 py-3 text-gray-600'>{formatBookingServiceNames(b)}</td>
 													<td className='px-6 py-3 text-gray-500'>
 														{new Date(b.start).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
 													</td>
 													<td className='px-6 py-3 font-medium text-gray-700'>${(b.totalCents / 100).toFixed(2)}</td>
 													<td className='px-6 py-3'>
-														<span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(b.status)}`}>
-															{b.status}
-														</span>
+														<div className='flex items-center gap-2'>
+															<span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(b.status)}`}>
+																{b.status}
+															</span>
+															<BookingDetailsButton booking={b} />
+														</div>
 													</td>
 												</tr>
 											))}

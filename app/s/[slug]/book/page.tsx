@@ -13,7 +13,15 @@ export default async function BookPage({
 		where: { slug: params.slug },
 		include: {
 			Services: { include: { Subservices: true } },
-			Employees: true,
+			Employees: {
+				include: {
+					services: {
+						include: {
+							service: true,
+						},
+					},
+				},
+			},
 			Bookings: {
 				where: {
 					status: { in: ['PENDING', 'CONFIRMED'] },

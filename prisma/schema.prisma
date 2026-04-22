@@ -52,30 +52,32 @@ model User {
 }
 
 model Spa {
-    id            String       @id @default(cuid())
-    ownerId       String
-    owner         User         @relation(fields: [ownerId], references: [id])
-    name          String
-    slug          String       @unique
-    description   String?
-    logoUrl       String?
-    coverUrl      String?
-    timezone      String       @default("America/St_Lucia")
-    colorPrimary  String       @default("#6EE7B7")
-    address       String?
-    phone         String?
-    email         String?
-    businessHours Json
-    depositRule   Json?
-    paymentConfig Json?
-    Services      Service[]
-    Subservices   Subservice[]
-    Employees     Employee[]
-    Bookings      Booking[]
-    Reviews       Review[]
+    id                     String       @id @default(cuid())
+    ownerId                String
+    owner                  User         @relation(fields: [ownerId], references: [id])
+    name                   String
+    slug                   String       @unique
+    description            String?
+    logoUrl                String?
+    coverUrl               String?
+    timezone               String       @default("America/St_Lucia")
+    colorPrimary           String       @default("#6EE7B7")
+    address                String?
+    phone                  String?
+    email                  String?
+    businessHours          Json
+    depositRule            Json?
+    paymentConfig          Json?
+    requiresBookingConsent Boolean      @default(false)
+    bookingConsentText     String?
+    Services               Service[]
+    Subservices            Subservice[]
+    Employees              Employee[]
+    Bookings               Booking[]
+    Reviews                Review[]
     SupportTickets SupportTicket[]
-    createdAt     DateTime     @default(now())
-    updatedAt     DateTime     @updatedAt
+    createdAt              DateTime     @default(now())
+    updatedAt              DateTime     @updatedAt
 }
 
 model Service {
@@ -91,20 +93,21 @@ model Service {
 }
 
 model Subservice {
-    id          String     @id @default(cuid())
-    spaId       String
-    spa         Spa        @relation(fields: [spaId], references: [id])
-    serviceId   String
-    service     Service    @relation(fields: [serviceId], references: [id])
-    name        String
-    description String?
-    durationMin Int
-    priceCents  Int
-    active      Boolean    @default(true)
-    Providers   Employee[] @relation("ProviderServices")
-    Bookings    Booking[]
-    createdAt   DateTime   @default(now())
-    updatedAt   DateTime   @updatedAt
+    id           String        @id @default(cuid())
+    spaId        String
+    spa          Spa           @relation(fields: [spaId], references: [id])
+    serviceId    String
+    service      Service       @relation(fields: [serviceId], references: [id])
+    name         String
+    description  String?
+    durationMin  Int
+    priceCents   Int
+    active       Boolean       @default(true)
+    Providers    Employee[]    @relation("ProviderServices")
+    Bookings     Booking[]
+    BookingItems BookingItem[]
+    createdAt    DateTime      @default(now())
+    updatedAt    DateTime      @updatedAt
 }
 
 model Employee {
@@ -126,30 +129,50 @@ model Employee {
 }
 
 model Booking {
-    id            String        @id @default(cuid())
-    spaId         String
-    spa           Spa           @relation(fields: [spaId], references: [id])
-    userId        String?
-    user          User?         @relation("UserBookings", fields: [userId], references: [id])
-    employeeId    String?
-    employee      Employee?     @relation(fields: [employeeId], references: [id])
-    subserviceId  String
-    subservice    Subservice    @relation(fields: [subserviceId], references: [id])
-    start         DateTime
-    end           DateTime
-    status        BookingStatus @default(PENDING)
-    notes         String?
-    paymentMethod PaymentMethod
-    paymentStatus PaymentStatus @default(UNPAID)
-    totalCents    Int
-    paidCents     Int           @default(0)
-    stripePiId    String?
-    cancellation  Cancellation?
-    createdAt     DateTime      @default(now())
-    updatedAt     DateTime      @updatedAt
+    id                String        @id @default(cuid())
+    spaId             String
+    spa               Spa           @relation(fields: [spaId], references: [id])
+    userId            String?
+    user              User?         @relation("UserBookings", fields: [userId], references: [id])
+    employeeId        String?
+    employee          Employee?     @relation(fields: [employeeId], references: [id])
+    subserviceId      String
+    subservice        Subservice    @relation(fields: [subserviceId], references: [id])
+    customerName      String?
+    customerEmail     String?
+    customerPhone     String?
+    start             DateTime
+    end               DateTime
+    status            BookingStatus @default(PENDING)
+    notes             String?
+    intakeForm        Json?
+    consentAcceptedAt DateTime?
+    consentSignature  String?
+    paymentMethod     PaymentMethod
+    paymentStatus     PaymentStatus @default(UNPAID)
+    totalCents        Int
+    paidCents         Int           @default(0)
+    stripePiId        String?
+    cancellation      Cancellation?
+    BookingItems      BookingItem[]
+    createdAt         DateTime      @default(now())
+    updatedAt         DateTime      @updatedAt
 
     @@index([spaId, start])
     @@index([employeeId, start])
+}
+
+model BookingItem {
+    id           String     @id @default(cuid())
+    bookingId    String
+    booking      Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+    subserviceId String
+    subservice   Subservice @relation(fields: [subserviceId], references: [id])
+    orderIndex   Int
+    createdAt    DateTime   @default(now())
+
+    @@index([bookingId, orderIndex])
+    @@index([subserviceId])
 }
 
 model Cancellation {

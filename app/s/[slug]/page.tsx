@@ -8,7 +8,18 @@ export default async function SpaPage({
 }) {
 	const spa = await prisma.spa.findUnique({
 		where: { slug: params.slug },
-		include: { Services: { include: { Subservices: true } }, Employees: true },
+		include: {
+			Services: { include: { Subservices: true } },
+			Employees: {
+				include: {
+					services: {
+						include: {
+							service: true,
+						},
+					},
+				},
+			},
+		},
 	})
 	if (!spa)
 		return (
@@ -188,12 +199,20 @@ export default async function SpaPage({
 											Specialties
 										</div>
 										<div className='flex flex-wrap gap-2'>
-											<span className='px-3 py-1 bg-warm-100 text-warm-700 rounded-full text-xs font-medium'>
-												Massage
-											</span>
-											<span className='px-3 py-1 bg-nude-100 text-nude-700 rounded-full text-xs font-medium'>
-												Wellness
-											</span>
+											{employee.services.length > 0 ? (
+												employee.services.slice(0, 4).map((service) => (
+													<span
+														key={service.id}
+														className='px-3 py-1 bg-warm-100 text-warm-700 rounded-full text-xs font-medium'
+													>
+														{service.name}
+													</span>
+												))
+											) : (
+												<span className='px-3 py-1 bg-nude-100 text-nude-700 rounded-full text-xs font-medium'>
+													General wellness
+												</span>
+											)}
 										</div>
 									</div>
 								</div>
