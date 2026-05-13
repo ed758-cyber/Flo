@@ -26,8 +26,29 @@ async function main() {
 	const owner3 = await prisma.user.create({
 		data: { email: 'owner3@example.com', name: 'Sarah Chen', hashedPassword: password, role: Role.OWNER },
 	})
+	const owner4 = await prisma.user.create({
+		data: { email: 'owner4@example.com', name: 'Nina Desouza', hashedPassword: password, role: Role.OWNER },
+	})
+	const owner5 = await prisma.user.create({
+		data: { email: 'owner5@example.com', name: 'Marcus Thompson', hashedPassword: password, role: Role.OWNER },
+	})
 	await prisma.user.create({
 		data: { email: 'customer@example.com', name: 'John Customer', hashedPassword: password, role: Role.USER },
+	})
+	await prisma.user.create({
+		data: { email: 'jane.doe@example.com', name: 'Jane Doe', hashedPassword: password, role: Role.USER },
+	})
+	await prisma.user.create({
+		data: { email: 'oliver.smith@example.com', name: 'Oliver Smith', hashedPassword: password, role: Role.USER },
+	})
+	await prisma.user.create({
+		data: { email: 'monique.brun@example.com', name: 'Monique Brun', hashedPassword: password, role: Role.USER },
+	})
+	await prisma.user.create({
+		data: { email: 'ryan.kelly@example.com', name: 'Ryan Kelly', hashedPassword: password, role: Role.USER },
+	})
+	await prisma.user.create({
+		data: { email: 'accountant@example.com', name: 'Ayesha Parker', hashedPassword: password, role: Role.ACCOUNTANT },
 	})
 
 	// ─── Spa 1: Emerald Bay Spa (Massage & Facial) ───────────────────────────
