@@ -1341,6 +1341,458 @@ export function ServicesPanel({ spa }: { spa: any }) {
 	)
 }
 
+// ─── Analytics Panel ────────────────────────────────────────────────────────
+
+export function AnalyticsPanel({ spa }: { spa: any }) {
+	// Calculate financial metrics
+	const now = new Date()
+	const currentMonth = now.getMonth()
+	const currentYear = now.getFullYear()
+
+	const monthlyBookings = spa.Bookings.filter((b: any) => {
+		const d = new Date(b.start)
+		return d.getMonth() === currentMonth && d.getFullYear() === currentYear && b.status !== 'CANCELLED'
+	})
+
+	const monthlyRevenue = monthlyBookings.filter((b: any) => b.paymentStatus === 'PAID').reduce((sum: number, b: any) => sum + b.paidCents, 0) / 100
+
+	const paymentBreakdown = {
+		paid: spa.Bookings.filter((b: any) => b.paymentStatus === 'PAID').length,
+		unpaid: spa.Bookings.filter((b: any) => b.paymentStatus === 'UNPAID').length,
+		partial: spa.Bookings.filter((b: any) => b.paymentStatus === 'PARTIAL').length,
+	}
+
+	const totalRevenue = spa.Bookings.filter((b: any) => b.paymentStatus === 'PAID').reduce((sum: number, b: any) => sum + b.paidCents, 0) / 100
+	const totalOutstanding = spa.Bookings.filter((b: any) => b.paymentStatus !== 'PAID' && b.status !== 'CANCELLED').reduce((sum: number, b: any) => sum + (b.totalCents - b.paidCents), 0) / 100
+
+	const avgBookingValue = totalRevenue / spa.Bookings.filter((b: any) => b.paymentStatus === 'PAID').length || 0
+
+	return (
+		<div className='space-y-8'>
+			{/* Financial Overview */}
+			<div>
+				<h3 className='text-xl font-bold text-gray-900 mb-6'>Financial Overview</h3>
+				<div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6'>
+					<div className='bg-white rounded-xl p-6 shadow-sm border border-gray-100'>
+						<div className='flex items-center justify-between mb-4'>
+							<div className='text-sm font-medium text-gray-500'>Total Revenue</div>
+							<div className='text-2xl'>💰</div>
+						</div>
+						<div className='text-3xl font-bold text-green-600'>${totalRevenue.toFixed(0)}</div>
+						<div className='text-sm text-gray-500 mt-1'>All time</div>
+					</div>
+					<div className='bg-white rounded-xl p-6 shadow-sm border border-gray-100'>
+						<div className='flex items-center justify-between mb-4'>
+							<div className='text-sm font-medium text-gray-500'>Monthly Revenue</div>
+							<div className='text-2xl'>📈</div>
+						</div>
+						<div className='text-3xl font-bold text-blue-600'>${monthlyRevenue.toFixed(0)}</div>
+						<div className='text-sm text-gray-500 mt-1'>This month</div>
+					</div>
+					<div className='bg-white rounded-xl p-6 shadow-sm border border-gray-100'>
+						<div className='flex items-center justify-between mb-4'>
+							<div className='text-sm font-medium text-gray-500'>Outstanding Balance</div>
+							<div className='text-2xl'>⏳</div>
+						</div>
+						<div className='text-3xl font-bold text-orange-600'>${totalOutstanding.toFixed(0)}</div>
+						<div className='text-sm text-gray-500 mt-1'>Unpaid amounts</div>
+					</div>
+					<div className='bg-white rounded-xl p-6 shadow-sm border border-gray-100'>
+						<div className='flex items-center justify-between mb-4'>
+							<div className='text-sm font-medium text-gray-500'>Avg Booking Value</div>
+							<div className='text-2xl'>📊</div>
+						</div>
+						<div className='text-3xl font-bold text-purple-600'>${avgBookingValue.toFixed(0)}</div>
+						<div className='text-sm text-gray-500 mt-1'>Per paid booking</div>
+					</div>
+				</div>
+			</div>
+
+			{/* Payment Status Breakdown */}
+			<div>
+				<h3 className='text-xl font-bold text-gray-900 mb-6'>Payment Status</h3>
+				<div className='bg-white rounded-xl p-6 shadow-sm border border-gray-100'>
+					<div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
+						<div className='text-center'>
+							<div className='text-3xl font-bold text-green-600 mb-2'>{paymentBreakdown.paid}</div>
+							<div className='text-sm font-medium text-gray-700'>Paid</div>
+							<div className='w-full bg-gray-200 rounded-full h-2 mt-2'>
+								<div className='bg-green-500 h-2 rounded-full' style={{ width: `${(paymentBreakdown.paid / spa.Bookings.length) * 100}%` }}></div>
+							</div>
+						</div>
+						<div className='text-center'>
+							<div className='text-3xl font-bold text-red-600 mb-2'>{paymentBreakdown.unpaid}</div>
+							<div className='text-sm font-medium text-gray-700'>Unpaid</div>
+							<div className='w-full bg-gray-200 rounded-full h-2 mt-2'>
+								<div className='bg-red-500 h-2 rounded-full' style={{ width: `${(paymentBreakdown.unpaid / spa.Bookings.length) * 100}%` }}></div>
+							</div>
+						</div>
+						<div className='text-center'>
+							<div className='text-3xl font-bold text-yellow-600 mb-2'>{paymentBreakdown.partial}</div>
+							<div className='text-sm font-medium text-gray-700'>Partial</div>
+							<div className='w-full bg-gray-200 rounded-full h-2 mt-2'>
+								<div className='bg-yellow-500 h-2 rounded-full' style={{ width: `${(paymentBreakdown.partial / spa.Bookings.length) * 100}%` }}></div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			{/* Revenue Trends (Placeholder for charts) */}
+			<div>
+				<h3 className='text-xl font-bold text-gray-900 mb-6'>Revenue Trends</h3>
+				<div className='bg-white rounded-xl p-6 shadow-sm border border-gray-100'>
+					<div className='text-center py-12'>
+						<div className='text-6xl mb-4'>📈</div>
+						<h4 className='text-lg font-semibold text-gray-700 mb-2'>Revenue Chart Coming Soon</h4>
+						<p className='text-gray-500'>Detailed monthly and yearly revenue trends will be displayed here.</p>
+					</div>
+				</div>
+			</div>
+		</div>
+	)
+}
+
+// ─── Customer Panel ──────────────────────────────────────────────────────────
+
+export function CustomerPanel({ customers }: { customers: any[] }) {
+	return (
+		<div className='space-y-6'>
+			<div className='flex items-center justify-between'>
+				<h3 className='text-xl font-bold text-gray-900'>Customer Management</h3>
+				<div className='text-sm text-gray-500'>
+					{customers.length} total customers
+				</div>
+			</div>
+
+			<div className='grid gap-6'>
+				{customers.map((customer) => (
+					<div key={customer.id} className='bg-white rounded-xl p-6 shadow-sm border border-gray-100'>
+						<div className='flex items-start justify-between mb-4'>
+							<div>
+								<h4 className='text-lg font-semibold text-gray-900'>{customer.name || 'Walk-in Customer'}</h4>
+								<p className='text-gray-600'>{customer.email}</p>
+								<p className='text-sm text-gray-500'>Phone: {customer.phone || 'Not provided'}</p>
+							</div>
+							<div className='text-right'>
+								<div className='text-2xl font-bold text-warm-600'>{customer.Bookings.length}</div>
+								<div className='text-sm text-gray-500'>Total Bookings</div>
+							</div>
+						</div>
+
+						{/* Recent Bookings */}
+						<div className='mb-4'>
+							<h5 className='font-medium text-gray-900 mb-2'>Recent Bookings</h5>
+							<div className='space-y-2'>
+								{customer.Bookings.slice(0, 3).map((booking: any) => (
+									<div key={booking.id} className='flex items-center justify-between text-sm bg-gray-50 p-3 rounded-lg'>
+										<div>
+											<div className='font-medium'>{formatBookingServiceNames(booking)}</div>
+											<div className='text-gray-500'>{new Date(booking.start).toLocaleDateString()}</div>
+										</div>
+										<div className='text-right'>
+											<div className='font-medium'>${(booking.paidCents / 100).toFixed(0)}</div>
+											<div className={`text-xs px-2 py-1 rounded-full ${
+												booking.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+												booking.status === 'CONFIRMED' ? 'bg-blue-100 text-blue-800' :
+												'bg-gray-100 text-gray-800'
+											}`}>
+												{booking.status}
+											</div>
+										</div>
+									</div>
+								))}
+							</div>
+						</div>
+
+						{/* Reviews */}
+						{customer.Reviews.length > 0 && (
+							<div>
+								<h5 className='font-medium text-gray-900 mb-2'>Reviews ({customer.Reviews.length})</h5>
+								<div className='flex items-center gap-2'>
+									<div className='flex'>
+										{[1,2,3,4,5].map((star) => (
+											<svg key={star} className={`w-4 h-4 ${star <= Math.round(customer.Reviews.reduce((sum: number, r: any) => sum + r.rating, 0) / customer.Reviews.length) ? 'text-yellow-400 fill-current' : 'text-gray-300'}`} viewBox='0 0 20 20'>
+												<path d='M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z' />
+											</svg>
+										))}
+									</div>
+									<span className='text-sm text-gray-600'>
+										{(customer.Reviews.reduce((sum: number, r: any) => sum + r.rating, 0) / customer.Reviews.length).toFixed(1)} avg
+									</span>
+								</div>
+							</div>
+						)}
+					</div>
+				))}
+			</div>
+
+			{customers.length === 0 && (
+				<div className='text-center py-12 bg-white rounded-xl shadow-sm border border-gray-100'>
+					<div className='text-6xl mb-4'>👥</div>
+					<h3 className='text-xl font-bold text-gray-900 mb-2'>No Customers Yet</h3>
+					<p className='text-gray-600'>Customer profiles will appear here once bookings are made.</p>
+				</div>
+			)}
+		</div>
+	)
+}
+
+// ─── Performance Panel ────────────────────────────────────────────────────────
+
+export function PerformancePanel({ spa }: { spa: any }) {
+	// Calculate performance metrics for each employee
+	const employeePerformance = spa.Employees.map((employee: any) => {
+		const employeeBookings = spa.Bookings.filter((b: any) => b.employeeId === employee.id && b.status !== 'CANCELLED')
+		const completedBookings = employeeBookings.filter((b: any) => b.status === 'COMPLETED')
+		const totalRevenue = employeeBookings.filter((b: any) => b.paymentStatus === 'PAID').reduce((sum: number, b: any) => sum + b.paidCents, 0) / 100
+		const avgRating = spa.Reviews.length > 0 ? spa.Reviews.reduce((sum: number, r: any) => sum + r.rating, 0) / spa.Reviews.length : 0 // Note: This is spa-wide rating, not employee-specific
+
+		// Calculate utilization (bookings per week over last 4 weeks)
+		const fourWeeksAgo = new Date()
+		fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28)
+		const recentBookings = employeeBookings.filter((b: any) => new Date(b.start) >= fourWeeksAgo)
+		const utilization = (recentBookings.length / 4).toFixed(1) // bookings per week
+
+		return {
+			...employee,
+			totalBookings: employeeBookings.length,
+			completedBookings: completedBookings.length,
+			totalRevenue,
+			avgRating,
+			utilization: parseFloat(utilization),
+			completionRate: employeeBookings.length > 0 ? (completedBookings.length / employeeBookings.length * 100).toFixed(0) : 0
+		}
+	}).sort((a: any, b: any) => b.totalRevenue - a.totalRevenue)
+
+	return (
+		<div className='space-y-6'>
+			<div className='flex items-center justify-between'>
+				<h3 className='text-xl font-bold text-gray-900'>Staff Performance</h3>
+				<div className='text-sm text-gray-500'>
+					{spa.Employees.length} team members
+				</div>
+			</div>
+
+			<div className='grid gap-6'>
+				{employeePerformance.map((emp: any) => (
+					<div key={emp.id} className='bg-white rounded-xl p-6 shadow-sm border border-gray-100'>
+						<div className='flex items-start justify-between mb-4'>
+							<div>
+								<h4 className='text-lg font-semibold text-gray-900'>{emp.name}</h4>
+								<p className='text-gray-600'>{emp.role}</p>
+								<p className='text-sm text-gray-500'>Joined {new Date(emp.createdAt).toLocaleDateString()}</p>
+							</div>
+							<div className='text-right'>
+								<div className='text-2xl font-bold text-green-600'>${emp.totalRevenue.toFixed(0)}</div>
+								<div className='text-sm text-gray-500'>Revenue Generated</div>
+							</div>
+						</div>
+
+						<div className='grid grid-cols-2 md:grid-cols-4 gap-4 mb-4'>
+							<div className='text-center'>
+								<div className='text-xl font-bold text-blue-600'>{emp.totalBookings}</div>
+								<div className='text-xs text-gray-500'>Total Bookings</div>
+							</div>
+							<div className='text-center'>
+								<div className='text-xl font-bold text-green-600'>{emp.completedBookings}</div>
+								<div className='text-xs text-gray-500'>Completed</div>
+							</div>
+							<div className='text-center'>
+								<div className='text-xl font-bold text-purple-600'>{emp.utilization}</div>
+								<div className='text-xs text-gray-500'>Bookings/Week</div>
+							</div>
+							<div className='text-center'>
+								<div className='text-xl font-bold text-orange-600'>{emp.completionRate}%</div>
+								<div className='text-xs text-gray-500'>Completion Rate</div>
+							</div>
+						</div>
+
+						{/* Rating (spa-wide for now) */}
+						<div className='flex items-center gap-2'>
+							<span className='text-sm font-medium text-gray-700'>Average Rating:</span>
+							<div className='flex'>
+								{[1,2,3,4,5].map((star) => (
+									<svg key={star} className={`w-4 h-4 ${star <= Math.round(emp.avgRating) ? 'text-yellow-400 fill-current' : 'text-gray-300'}`} viewBox='0 0 20 20'>
+										<path d='M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z' />
+									</svg>
+								))}
+							</div>
+							<span className='text-sm text-gray-600'>{emp.avgRating.toFixed(1)}</span>
+						</div>
+					</div>
+				))}
+			</div>
+
+			{spa.Employees.length === 0 && (
+				<div className='text-center py-12 bg-white rounded-xl shadow-sm border border-gray-100'>
+					<div className='text-6xl mb-4'>📈</div>
+					<h3 className='text-xl font-bold text-gray-900 mb-2'>No Staff Performance Data</h3>
+					<p className='text-gray-600'>Add team members to start tracking performance metrics.</p>
+				</div>
+			)}
+		</div>
+	)
+}
+
+// ─── Reports Panel ────────────────────────────────────────────────────────────
+
+export function ReportsPanel({ spa, customers }: { spa: any, customers: any[] }) {
+	const [isGenerating, setIsGenerating] = useState(false)
+	const [reportType, setReportType] = useState('')
+
+	const generateReport = async (type: string) => {
+		setIsGenerating(true)
+		setReportType(type)
+
+		// Simulate report generation
+		await new Promise(resolve => setTimeout(resolve, 2000))
+
+		// Create CSV content based on type
+		let csvContent = ''
+		let filename = ''
+
+		if (type === 'financial') {
+			csvContent = 'Date,Booking ID,Customer,Service,Amount,Payment Status\n'
+			spa.Bookings.forEach((booking: any) => {
+				csvContent += `${new Date(booking.start).toLocaleDateString()},${booking.id},${booking.user?.name || 'Walk-in'},${formatBookingServiceNames(booking)},$${(booking.paidCents / 100).toFixed(2)},${booking.paymentStatus}\n`
+			})
+			filename = 'financial-report.csv'
+		} else if (type === 'bookings') {
+			csvContent = 'Date,Time,Customer,Service,Employee,Status,Amount\n'
+			spa.Bookings.forEach((booking: any) => {
+				csvContent += `${new Date(booking.start).toLocaleDateString()},${new Date(booking.start).toLocaleTimeString()},${booking.user?.name || 'Walk-in'},${formatBookingServiceNames(booking)},${booking.employee?.name || 'Unassigned'},${booking.status},$${(booking.totalCents / 100).toFixed(2)}\n`
+			})
+			filename = 'bookings-report.csv'
+		} else if (type === 'customers') {
+			csvContent = 'Name,Email,Phone,Total Bookings,Total Spent,Last Visit\n'
+			customers.forEach((customer: any) => {
+				const totalSpent = customer.Bookings.filter((b: any) => b.paymentStatus === 'PAID').reduce((sum: number, b: any) => sum + b.paidCents, 0) / 100
+				const lastVisit = customer.Bookings.length > 0 ? new Date(customer.Bookings[0].start).toLocaleDateString() : 'Never'
+				csvContent += `${customer.name || 'Walk-in'},${customer.email},${customer.phone || ''},${customer.Bookings.length},$${totalSpent.toFixed(2)},${lastVisit}\n`
+			})
+			filename = 'customers-report.csv'
+		}
+
+		// Download CSV
+		const blob = new Blob([csvContent], { type: 'text/csv' })
+		const url = window.URL.createObjectURL(blob)
+		const a = document.createElement('a')
+		a.href = url
+		a.download = filename
+		document.body.appendChild(a)
+		a.click()
+		document.body.removeChild(a)
+		window.URL.revokeObjectURL(url)
+
+		setIsGenerating(false)
+		setReportType('')
+	}
+
+	return (
+		<div className='space-y-6'>
+			<div>
+				<h3 className='text-xl font-bold text-gray-900 mb-6'>Reports & Exports</h3>
+				<p className='text-gray-600 mb-6'>Generate detailed reports for accounting and business analysis.</p>
+			</div>
+
+			<div className='grid md:grid-cols-3 gap-6'>
+				{/* Financial Report */}
+				<div className='bg-white rounded-xl p-6 shadow-sm border border-gray-100'>
+					<div className='text-center mb-4'>
+						<div className='text-4xl mb-2'>💰</div>
+						<h4 className='text-lg font-semibold text-gray-900'>Financial Report</h4>
+						<p className='text-sm text-gray-600'>Revenue, payments, and financial data</p>
+					</div>
+					<button
+						onClick={() => generateReport('financial')}
+						disabled={isGenerating}
+						className='w-full bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+					>
+						{isGenerating && reportType === 'financial' ? 'Generating...' : 'Download CSV'}
+					</button>
+				</div>
+
+				{/* Bookings Report */}
+				<div className='bg-white rounded-xl p-6 shadow-sm border border-gray-100'>
+					<div className='text-center mb-4'>
+						<div className='text-4xl mb-2'>📅</div>
+						<h4 className='text-lg font-semibold text-gray-900'>Bookings Report</h4>
+						<p className='text-sm text-gray-600'>All booking details and history</p>
+					</div>
+					<button
+						onClick={() => generateReport('bookings')}
+						disabled={isGenerating}
+						className='w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+					>
+						{isGenerating && reportType === 'bookings' ? 'Generating...' : 'Download CSV'}
+					</button>
+				</div>
+
+				{/* Customers Report */}
+				<div className='bg-white rounded-xl p-6 shadow-sm border border-gray-100'>
+					<div className='text-center mb-4'>
+						<div className='text-4xl mb-2'>👥</div>
+						<h4 className='text-lg font-semibold text-gray-900'>Customers Report</h4>
+						<p className='text-sm text-gray-600'>Customer profiles and spending data</p>
+					</div>
+					<button
+						onClick={() => generateReport('customers')}
+						disabled={isGenerating}
+						className='w-full bg-purple-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+					>
+						{isGenerating && reportType === 'customers' ? 'Generating...' : 'Download CSV'}
+					</button>
+				</div>
+			</div>
+
+			{/* Report Summary */}
+			<div className='bg-white rounded-xl p-6 shadow-sm border border-gray-100'>
+				<h4 className='text-lg font-semibold text-gray-900 mb-4'>Report Summary</h4>
+				<div className='grid md:grid-cols-3 gap-6'>
+					<div className='text-center'>
+						<div className='text-2xl font-bold text-green-600'>{spa.Bookings.length}</div>
+						<div className='text-sm text-gray-600'>Total Bookings</div>
+					</div>
+					<div className='text-center'>
+						<div className='text-2xl font-bold text-blue-600'>{customers.length}</div>
+						<div className='text-sm text-gray-600'>Unique Customers</div>
+					</div>
+					<div className='text-center'>
+						<div className='text-2xl font-bold text-purple-600'>
+							${spa.Bookings.filter((b: any) => b.paymentStatus === 'PAID').reduce((sum: number, b: any) => sum + b.paidCents, 0) / 100}
+						</div>
+						<div className='text-sm text-gray-600'>Total Revenue</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	)
+}
+
+// ─── Schedule Panel ──────────────────────────────────────────────────────────
+
+export function SchedulePanel({ spa }: { spa: any }) {
+	return (
+		<div className='space-y-6'>
+			<div className='text-center py-12'>
+				<div className='text-6xl mb-4'>🕒</div>
+				<h3 className='text-xl font-bold text-gray-900 mb-2'>Employee Scheduling</h3>
+				<p className='text-gray-600 mb-6'>Manage employee availability and assign staff to bookings.</p>
+				<div className='bg-blue-50 border border-blue-200 rounded-lg p-4 text-left max-w-md mx-auto'>
+					<h4 className='font-semibold text-blue-900 mb-2'>Coming Soon:</h4>
+					<ul className='text-sm text-blue-800 space-y-1'>
+						<li>• Set employee working hours</li>
+						<li>• Assign staff to specific bookings</li>
+						<li>• View availability calendar</li>
+						<li>• Manage time-off requests</li>
+					</ul>
+				</div>
+			</div>
+		</div>
+	)
+}
+
 // ─── Spa Settings Panel ───────────────────────────────────────────────────────
 
 export function SpaSettingsPanel({ spa }: { spa: any }) {
@@ -1473,7 +1925,7 @@ export function ContactButton() {
 				<div className='fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4'>
 					<div className='bg-white rounded-2xl shadow-2xl w-full max-w-sm'>
 						<div className='flex items-center justify-between px-6 py-4 border-b border-gray-100'>
-							<h3 className='text-lg font-bold text-gray-900'>Contact Flo Support</h3>
+							<h3 className='text-lg font-bold text-gray-900'>Contact Booktrix Support</h3>
 							<button
 								onClick={() => setOpen(false)}
 								className='p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-500'
@@ -1486,12 +1938,12 @@ export function ContactButton() {
 						<div className='p-6 space-y-4'>
 							<div className='p-4 bg-warm-50 rounded-lg'>
 								<p className='text-sm text-gray-500 mb-1'>Phone</p>
-								<p className='text-xl font-bold text-warm-600'>+1-888-FLO-HELP</p>
+								<p className='text-xl font-bold text-warm-600'>+1-888-BOOKTRIX</p>
 								<p className='text-xs text-gray-500 mt-2'>Available: Monday-Friday, 9AM-6PM</p>
 							</div>
 							<div className='p-4 bg-warm-50 rounded-lg'>
 								<p className='text-sm text-gray-500 mb-1'>Email</p>
-								<p className='text-lg font-bold text-warm-600'>support@floapp.com</p>
+								<p className='text-lg font-bold text-warm-600'>support@booktrix.com</p>
 								<p className='text-xs text-gray-500 mt-2'>We respond within 2 hours</p>
 							</div>
 							<div className='p-4 bg-warm-50 rounded-lg'>

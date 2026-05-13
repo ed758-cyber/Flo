@@ -21,7 +21,7 @@ export default function JoinUsPage() {
 				{/* Header */}
 				<div className='text-center mb-12'>
 					<h1 className='text-5xl md:text-6xl font-light text-gray-900 mb-4 tracking-wider'>
-						FLO
+						BOOKTRIX
 					</h1>
 					<p className='text-xl text-gray-600 mb-6'>
 						Your Wellness Journey Begins Here
@@ -58,7 +58,7 @@ export default function JoinUsPage() {
 							Create Account
 						</h2>
 						<p className='text-gray-600 mb-6'>
-							New to FLO? Sign up to start booking wellness experiences today.
+							New to BOOKTRIX? Sign up to start booking wellness experiences today.
 						</p>
 						<span className='inline-flex items-center gap-2 text-warm-600 font-semibold group-hover:gap-3 transition-all'>
 							Get Started
@@ -127,7 +127,7 @@ export default function JoinUsPage() {
 				{/* Footer */}
 				<div className='text-center mt-12'>
 					<p className='text-gray-600'>
-						By joining FLO, you agree to our{' '}
+						By joining BOOKTRIX, you agree to our{' '}
 						<Link href='#' className='text-warm-600 hover:text-warm-700'>
 							Terms of Service
 						</Link>

@@ -33,6 +33,11 @@ export default async function BookPage({
 					employeeId: true,
 				},
 			},
+			Reviews: {
+				select: {
+					rating: true,
+				},
+			},
 		},
 	})
 	if (!spa)
@@ -46,5 +51,12 @@ export default async function BookPage({
 			</div>
 		)
 
-	return <BookClient spa={spa} preselectedServiceId={searchParams.service} />
+	const averageRating = spa.Reviews.length
+		? Math.round((spa.Reviews.reduce((sum, review) => sum + review.rating, 0) / spa.Reviews.length) * 10) / 10
+		: 0
+	const reviewCount = spa.Reviews.length
+
+	return (
+		<BookClient spa={{ ...spa, averageRating, reviewCount }} preselectedServiceId={searchParams.service} />
+	)
 }

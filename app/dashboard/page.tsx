@@ -311,7 +311,7 @@ export default async function DashboardPage() {
 					<div className='grid md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12'>
 						{/* Brand */}
 						<div>
-							<h3 className='text-2xl font-serif text-warm-900 mb-4'>FLO</h3>
+							<h3 className='text-2xl font-serif text-warm-900 mb-4'>BOOKTRIX</h3>
 							<p className='text-gray-600 text-sm leading-relaxed mb-4'>
 								Saint Lucia's premier wellness booking platform. Discover
 								tranquility, book wellness.
@@ -412,10 +412,10 @@ export default async function DashboardPage() {
 										/>
 									</svg>
 									<a
-										href='mailto:hello@flospa.lc'
+										href='mailto:hello@booktrix.lc'
 										className='hover:text-warm-600 transition-colors'
 									>
-										hello@flospa.lc
+										hello@booktrix.lc
 									</a>
 								</li>
 								<li className='flex items-start gap-2'>
@@ -489,7 +489,7 @@ export default async function DashboardPage() {
 					{/* Bottom Bar */}
 					<div className='pt-8 border-t border-warm-200 text-center text-sm text-gray-500'>
 						<p>
-							&copy; {new Date().getFullYear()} FLO Booking. All rights
+							&copy; {new Date().getFullYear()} BOOKTRIX Booking. All rights
 							reserved.
 						</p>
 					</div>

@@ -9,6 +9,11 @@ import {
 	NewBookingButton,
 	StaffPanel,
 	ServicesPanel,
+	AnalyticsPanel,
+	CustomerPanel,
+	PerformancePanel,
+	ReportsPanel,
+	SchedulePanel,
 	SpaSettingsPanel,
 	ContactButton,
 } from './components'
@@ -29,6 +34,7 @@ export default async function ManagerDashboardPage({
 				include: {
 					Services: { include: { Subservices: true } },
 					Employees: true,
+					Reviews: { select: { rating: true } },
 					Bookings: {
 						include: {
 							user: true,
@@ -56,6 +62,30 @@ export default async function ManagerDashboardPage({
 	if (user.role !== 'OWNER') redirect('/profile')
 
 	const spa = user.OwnedSpas[0]
+
+	// Fetch customers with their booking history and reviews
+	const customers = await prisma.user.findMany({
+		where: {
+			Bookings: {
+				some: { spaId: spa.id }
+			}
+		},
+		include: {
+			Bookings: {
+				where: { spaId: spa.id },
+				include: {
+					subservice: { include: { service: true } },
+					employee: true,
+					BookingItems: true
+				},
+				orderBy: { start: 'desc' }
+			},
+			Reviews: {
+				where: { spaId: spa.id },
+				orderBy: { createdAt: 'desc' }
+			}
+		}
+	})
 
 	if (!spa) {
 		return (
@@ -85,17 +115,51 @@ export default async function ManagerDashboardPage({
 		return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
 	})
 	const totalRevenue = spa.Bookings.filter((b) => b.paymentStatus === 'PAID').reduce(
-		(sum, b) => sum + b.paidCents, 0
+		(sum, b) => sum + b.paidCents,
+		0
 	)
 	const pendingPayments = spa.Bookings.filter(
 		(b) => b.paymentStatus === 'UNPAID' && b.status !== 'CANCELLED'
 	).length
+	const overdueBalance = spa.Bookings.filter(
+		(b) => b.paymentStatus !== 'PAID' && b.status !== 'CANCELLED'
+	).reduce((sum, b) => sum + (b.totalCents - b.paidCents), 0)
+	const unpaidAmount = spa.Bookings.filter(
+		(b) => b.paymentStatus !== 'PAID' && b.status !== 'CANCELLED'
+	).reduce((sum, b) => sum + b.totalCents, 0)
 	const totalBookings = spa.Bookings.filter((b) => b.status !== 'CANCELLED').length
+	const averageRating = spa.Reviews.length
+		? Math.round((spa.Reviews.reduce((sum, r) => sum + r.rating, 0) / spa.Reviews.length) * 10) / 10
+		: 0
+	const weekdayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+	const dayCounts = spa.Bookings.reduce((counts: Record<string, number>, booking) => {
+		if (booking.status === 'CANCELLED') return counts
+		const day = weekdayNames[new Date(booking.start).getDay()]
+		counts[day] = (counts[day] || 0) + 1
+		return counts
+	}, {})
+	const peakDayEntry = Object.entries(dayCounts).sort(([, a], [, b]) => b - a)[0]
+	const peakDay = peakDayEntry ? `${peakDayEntry[0]} (${peakDayEntry[1]} bookings)` : 'N/A'
+	const hourCounts = spa.Bookings.reduce((counts: Record<string, number>, booking) => {
+		if (booking.status === 'CANCELLED') return counts
+		const hour = new Date(booking.start).getHours().toString().padStart(2, '0')
+		counts[hour] = (counts[hour] || 0) + 1
+		return counts
+	}, {})
+	const busiestHours = Object.entries(hourCounts)
+		.sort(([, a], [, b]) => b - a)
+		.slice(0, 3)
+		.map(([hour, count]) => ({ hour, count }))
 
 	const tabs = [
 		{ id: 'bookings', label: 'Bookings', icon: '📅' },
 		{ id: 'staff', label: 'Staff', icon: '👥' },
 		{ id: 'services', label: 'Services', icon: '💆' },
+		{ id: 'analytics', label: 'Analytics', icon: '📊' },
+		{ id: 'customers', label: 'Customers', icon: '👥' },
+		{ id: 'performance', label: 'Performance', icon: '📈' },
+		{ id: 'reports', label: 'Reports', icon: '📄' },
+		{ id: 'schedule', label: 'Schedule', icon: '🕒' },
 		{ id: 'settings', label: 'Settings', icon: '⚙️' },
 	]
 
@@ -143,6 +207,9 @@ export default async function ManagerDashboardPage({
 							{ label: 'Total Revenue', value: `$${(totalRevenue / 100).toFixed(0)}`, icon: '💰' },
 							{ label: 'Pending Payments', value: pendingPayments, icon: '⏳' },
 							{ label: 'Staff Members', value: spa.Employees.length, icon: '👥' },
+							{ label: 'Avg. Rating', value: averageRating ? `${averageRating} / 5` : 'No reviews', icon: '⭐' },
+							{ label: 'Overdue Balance', value: `$${(overdueBalance / 100).toFixed(0)}`, icon: '⚠️' },
+							{ label: 'Peak Day', value: peakDay, icon: '📈' },
 						].map((stat) => (
 							<div key={stat.label} className='bg-white/20 backdrop-blur-sm rounded-xl p-4'>
 								<div className='text-xl mb-1'>{stat.icon}</div>
@@ -312,6 +379,36 @@ export default async function ManagerDashboardPage({
 				{activeTab === 'services' && (
 					<div className='bg-white rounded-2xl shadow-sm p-6'>
 						<ServicesPanel spa={spa} />
+					</div>
+				)}
+
+				{activeTab === 'analytics' && (
+					<div className='bg-white rounded-2xl shadow-sm p-6'>
+						<AnalyticsPanel spa={spa} />
+					</div>
+				)}
+
+				{activeTab === 'customers' && (
+					<div className='bg-white rounded-2xl shadow-sm p-6'>
+						<CustomerPanel customers={customers} />
+					</div>
+				)}
+
+				{activeTab === 'performance' && (
+					<div className='bg-white rounded-2xl shadow-sm p-6'>
+						<PerformancePanel spa={spa} />
+					</div>
+				)}
+
+				{activeTab === 'reports' && (
+					<div className='bg-white rounded-2xl shadow-sm p-6'>
+						<ReportsPanel spa={spa} customers={customers} />
+					</div>
+				)}
+
+				{activeTab === 'schedule' && (
+					<div className='bg-white rounded-2xl shadow-sm p-6'>
+						<SchedulePanel spa={spa} />
 					</div>
 				)}
 

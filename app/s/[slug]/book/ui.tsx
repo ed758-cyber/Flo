@@ -281,6 +281,9 @@ function TimeGrid({ date, selectedTime, onSelect, bookedSlots, durationMin, empl
 
 	return (
 		<div className='space-y-5'>
+			{!groups.some(group => group.slots.some(isAvailable)) ? (
+				<div className='rounded-2xl border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500 text-center'>No available time slots for this date. Please select another day or try a different service.</div>
+			) : null}
 			{groups.map(({ label, icon, slots: groupSlots }) => {
 				const available = groupSlots.filter(isAvailable)
 				if (available.length === 0 && !groupSlots.some(s => s === selectedTime)) return null
@@ -446,6 +449,16 @@ export default function BookClient({
 					</Link>
 					<h1 className='text-3xl font-bold mb-1'>Book Your Appointment</h1>
 					<p className='text-warm-100 text-sm'>at {spa.name}</p>
+				<div className='mt-4 flex flex-wrap gap-4 text-sm text-white/90'>
+					<div className='inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1'>
+						<span className='font-semibold'>{spa.averageRating ? spa.averageRating.toFixed(1) : 'New'}</span>
+						<span>{spa.reviewCount || 0} reviews</span>
+					</div>
+					<div className='inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1'>
+						<span className='font-semibold'>Starting at</span>
+						<span>${((spa.Services[0]?.Subservices?.[0]?.priceCents || 0) / 100).toFixed(0)}</span>
+					</div>
+				</div>
 				</div>
 			</div>
 

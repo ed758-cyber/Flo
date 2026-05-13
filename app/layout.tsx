@@ -5,8 +5,8 @@ import { authOptions } from '@/lib/auth'
 import Navigation from './components/Navigation'
 
 export const metadata = {
-	title: 'FLO - Luxury Spa & Wellness Booking',
-	description: 'Book premium spa and wellness experiences',
+	title: 'BOOKTRIX- Making booking services effortless',
+	description: 'Premium booking platform.',
 }
 
 export default async function RootLayout({

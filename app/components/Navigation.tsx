@@ -68,7 +68,7 @@ export default function Navigation({ session }: { session: any }) {
 						</svg>
 					<div>
 						<div className='text-2xl font-bold text-gray-900'>Booktrix</div>
-						<div className='text-xs text-gray-500 -mt-1'>Spa Center</div>
+						<div className='text-xs text-gray-500 -mt-1'>Service Center</div>
 					</div>
 					</Link>
 

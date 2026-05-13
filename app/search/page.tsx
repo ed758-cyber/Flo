@@ -15,6 +15,9 @@ interface Spa {
   phone?: string
   averageRating?: number
   reviewCount?: number
+  minPriceCents?: number
+  maxPriceCents?: number
+  serviceTypes?: string[]
 }
 
 export default function SearchPage() {
@@ -24,6 +27,9 @@ export default function SearchPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState('name')
   const [minRating, setMinRating] = useState(0)
+  const [serviceType, setServiceType] = useState('all')
+  const [priceRange, setPriceRange] = useState('all')
+  const [serviceTypes, setServiceTypes] = useState<string[]>([])
 
   useEffect(() => {
     fetchSpas()
@@ -31,13 +37,21 @@ export default function SearchPage() {
 
   useEffect(() => {
     applyFilters()
-  }, [searchTerm, sortBy, minRating, spas])
+  }, [searchTerm, sortBy, minRating, serviceType, priceRange, spas])
 
   const fetchSpas = async () => {
     try {
       const response = await fetch('/api/spas')
       const data = await response.json()
       setSpas(data || [])
+      const types = Array.from(
+        new Set(
+          (data || [])
+            .flatMap((spa: Spa) => spa.serviceTypes || [])
+            .filter(Boolean)
+        )
+      )
+      setServiceTypes(types as string[])
     } catch (error) {
       console.error('Failed to fetch spas:', error)
     } finally {
@@ -53,8 +67,19 @@ export default function SearchPage() {
         spa.address?.toLowerCase().includes(searchTerm.toLowerCase())
 
       const matchesRating = (spa.averageRating || 0) >= minRating
+      const matchesServiceType =
+        serviceType === 'all' || (spa.serviceTypes || []).includes(serviceType)
+      const matchesPriceRange = (() => {
+        if (priceRange === 'all') return true
+        const minPrice = spa.minPriceCents ?? 0
+        const maxPrice = spa.maxPriceCents ?? 0
+        if (priceRange === 'under75') return minPrice <= 7500
+        if (priceRange === '75-150') return minPrice <= 15000 && maxPrice >= 7500
+        if (priceRange === 'over150') return maxPrice >= 15000
+        return true
+      })()
 
-      return matchesSearch && matchesRating
+      return matchesSearch && matchesRating && matchesServiceType && matchesPriceRange
     })
 
     // Sort results
@@ -88,7 +113,7 @@ export default function SearchPage() {
       {/* Search and Filter Controls */}
       <div className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-6 py-6">
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-5">
             <div>
               <label className="block text-sm font-semibold mb-2">Search</label>
               <input
@@ -114,16 +139,30 @@ export default function SearchPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-2">Min. Rating</label>
+              <label className="block text-sm font-semibold mb-2">Service Type</label>
               <select
-                value={minRating}
-                onChange={(e) => setMinRating(Number(e.target.value))}
+                value={serviceType}
+                onChange={(e) => setServiceType(e.target.value)}
                 className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-warm-400"
               >
-                <option value={0}>All Ratings</option>
-                <option value={4}>4+ Stars</option>
-                <option value={4.5}>4.5+ Stars</option>
-                <option value={5}>5 Stars Only</option>
+                <option value="all">All Service Types</option>
+                {serviceTypes.map((type) => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold mb-2">Price Range</label>
+              <select
+                value={priceRange}
+                onChange={(e) => setPriceRange(e.target.value)}
+                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-warm-400"
+              >
+                <option value="all">All Prices</option>
+                <option value="under75">Under $75</option>
+                <option value="75-150">$75–$150</option>
+                <option value="over150">$150+</option>
               </select>
             </div>
 
@@ -181,27 +220,41 @@ export default function SearchPage() {
 
                   <div className="mt-4 flex items-center justify-between">
                     {spa.averageRating ? (
-                      <div className="flex items-center gap-2">
-                        <div className="flex gap-1">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <span
-                              key={star}
-                              className={`text-sm ${
-                                star <= Math.round(spa.averageRating || 0)
-                                  ? 'text-yellow-400'
-                                  : 'text-gray-300'
-                              }`}
-                            >
-                              ★
-                            </span>
-                          ))}
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="flex gap-1">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <span
+                                key={star}
+                                className={`text-sm ${
+                                  star <= Math.round(spa.averageRating || 0)
+                                    ? 'text-yellow-400'
+                                    : 'text-gray-300'
+                                }`}
+                              >
+                                ★
+                              </span>
+                            ))}
+                          </div>
+                          <span className="text-xs text-gray-600">
+                            {spa.averageRating.toFixed(1)} • {spa.reviewCount || 0} reviews
+                          </span>
                         </div>
-                        <span className="text-xs text-gray-600">
-                          ({spa.reviewCount || 0})
-                        </span>
+                        {spa.minPriceCents !== undefined && spa.maxPriceCents !== undefined && (
+                          <span className="text-xs text-gray-500">
+                            ${((spa.minPriceCents || 0) / 100).toFixed(0)}–${((spa.maxPriceCents || 0) / 100).toFixed(0)}
+                          </span>
+                        )}
                       </div>
                     ) : (
-                      <span className="text-xs text-gray-500">No reviews yet</span>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs text-gray-500">No reviews yet</span>
+                        {spa.minPriceCents !== undefined && spa.maxPriceCents !== undefined && (
+                          <span className="text-xs text-gray-500">
+                            Starting at ${((spa.minPriceCents || 0) / 100).toFixed(0)}
+                          </span>
+                        )}
+                      </div>
                     )}
 
                     <button className="bg-warm-400 text-white px-4 py-2 rounded-lg text-sm hover:bg-warm-500 transition">
