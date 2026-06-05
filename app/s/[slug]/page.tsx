@@ -179,11 +179,11 @@ export default async function SpaPage({
 								className='bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-all hover:-translate-y-1 duration-200'
 							>
 								<div className='h-48 bg-gradient-to-br from-warm-300 to-nude-400 relative overflow-hidden'>
-									<img
-										src={`https://i.pravatar.cc/300?u=${employee.id}`}
-										alt={employee.name}
-										className='w-full h-full object-cover'
-									/>
+										{employee.photoUrl ? (
+											<img src={employee.photoUrl} alt={employee.name} className='w-full h-full object-cover' />
+										) : (
+											<img src={`https://i.pravatar.cc/300?u=${employee.id}`} alt={employee.name} className='w-full h-full object-cover' />
+										)}
 								</div>
 
 								<div className='p-6'>
@@ -193,6 +193,19 @@ export default async function SpaPage({
 									<p className='text-gray-600 text-sm leading-relaxed mb-4'>
 										{employee.bio}
 									</p>
+
+									<div className='text-sm text-gray-600 mb-2'>
+										{employee.email && (
+											<div>
+												<a href={`mailto:${employee.email}`} className='text-warm-700 font-medium'>{employee.email}</a>
+											</div>
+										)}
+										{employee.phone && (
+											<div>
+												<a href={`tel:${employee.phone}`} className='text-gray-600'>{employee.phone}</a>
+											</div>
+										)}
+									</div>
 
 									<div className='pt-4 border-t border-gray-100'>
 										<div className='text-xs text-gray-500 mb-1'>

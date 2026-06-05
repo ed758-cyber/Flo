@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { getCustomerStats } from './actions'
 import { CancelBookingButton, RescheduleBookingButton } from './components'
 import { formatBookingServiceNames } from '@/lib/booking'
+import RedeemPoints from './RedeemPoints'
 
 export default async function ProfilePage() {
 	const session = await getServerSession(authOptions)
@@ -74,8 +75,9 @@ export default async function ProfilePage() {
 									{user.name || 'User'}
 								</h1>
 								<p className='text-gray-600 mb-2'>{user.email}</p>
-								<div className='inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-warm-100 text-warm-800'>
-									{user.role}
+								<div className='inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-warm-100 text-warm-800 gap-3'>
+									<span>{user.role}</span>
+									<span className='text-xs bg-white px-2 py-1 rounded-full text-warm-700 font-semibold'>Points: {user.points}</span>
 								</div>
 							</div>
 						</div>
@@ -401,6 +403,11 @@ export default async function ProfilePage() {
 							</div>
 						</div>
 					)}
+				</div>
+
+				{/* Redeem Points */}
+				<div className='mt-4'>
+					<RedeemPoints currentPoints={user.points} />
 				</div>
 			</div>
 		</div>

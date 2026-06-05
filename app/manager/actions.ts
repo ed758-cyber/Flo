@@ -11,7 +11,7 @@ async function getOwnerSession() {
 	const session = await getServerSession(authOptions)
 	const userId = (session?.user as any)?.id
 	const role = (session?.user as any)?.role
-	if (!userId || role !== 'OWNER') return null
+	if (!userId || (role !== 'OWNER' && role !== 'EMPLOYEE')) return null
 	return { userId, role }
 }
 
@@ -124,6 +124,7 @@ export async function createBooking(
 				customerName: input.customerName || null,
 				customerEmail: input.customerEmail || null,
 				customerPhone: input.customerPhone || null,
+                createdByRole: auth.role as any,
 				BookingItems: {
 					create: orderedSubservices.map((item, index) => ({
 						subserviceId: item!.id,
@@ -156,6 +157,14 @@ export async function rescheduleBooking(input: {
 			include: { BookingItems: { include: { subservice: true } }, subservice: true },
 		})
 		if (!booking) return { ok: false, error: 'Booking not found' }
+
+		// Prevent editing past bookings
+		// Allow marking COMPLETED or NO_SHOW after the booking has started,
+		// but prevent other modifications once the start time has passed.
+		const started = new Date(booking.start) <= new Date()
+		if (started && !['COMPLETED', 'NO_SHOW'].includes(status)) {
+			return { ok: false, error: 'Only status updates to COMPLETED or NO_SHOW are allowed after the booking start time' }
+		}
 
 		const [datePart, timePart] = input.newStart.split('T')
 		const [year, month, day] = datePart.split('-').map(Number)
@@ -213,6 +222,10 @@ export async function cancelBookingManager(bookingId: string, reason?: string) {
 		if (booking.status === 'CANCELLED')
 			return { ok: false, error: 'Already cancelled' }
 
+		if (new Date(booking.start) <= new Date()) {
+			return { ok: false, error: 'Cannot modify a booking after its start time' }
+		}
+
 		await prisma.$transaction([
 			prisma.booking.update({
 				where: { id: bookingId },
@@ -246,7 +259,9 @@ export async function markBookingPaid(bookingId: string) {
 			where: { id: bookingId },
 		})
 		if (!booking) return { ok: false, error: 'Booking not found' }
-
+		if (new Date(booking.start) <= new Date()) {
+			return { ok: false, error: 'Cannot modify a booking after its start time' }
+		}
 		await prisma.booking.update({
 			where: { id: bookingId },
 			data: {
@@ -273,10 +288,26 @@ export async function updateBookingStatus(
 		const auth = await getOwnerSession()
 		if (!auth) return { ok: false, error: 'Unauthorized' }
 
-		await prisma.booking.update({
-			where: { id: bookingId },
-			data: { status },
-		})
+		const booking = await prisma.booking.findUnique({ where: { id: bookingId } })
+		if (!booking) return { ok: false, error: 'Booking not found' }
+
+		if (new Date(booking.start) <= new Date()) {
+			return { ok: false, error: 'Cannot modify a booking after its start time' }
+		}
+
+		await prisma.booking.update({ where: { id: bookingId }, data: { status } })
+
+		// Award points to the user on completion
+		if (status === 'COMPLETED' && booking.userId) {
+			try {
+				await prisma.user.update({
+					where: { id: booking.userId },
+					data: { points: { increment: Math.floor(booking.totalCents / 100) } },
+				})
+			} catch (e) {
+				console.error('Failed to award points:', e)
+			}
+		}
 
 		revalidatePath('/manager')
 		return { ok: true }

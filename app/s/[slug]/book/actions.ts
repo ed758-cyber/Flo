@@ -118,6 +118,7 @@ export async function createBooking(input: z.infer<typeof BookingInput>) {
 				intakeForm: input.intakeForm || undefined,
 				customerName: session?.user?.name || null,
 				customerEmail: session?.user?.email || null,
+				createdByRole: (session?.user as any)?.role ?? 'USER',
 				consentAcceptedAt: spa.requiresBookingConsent ? new Date() : null,
 				consentSignature:
 					spa.requiresBookingConsent && input.consentSignature

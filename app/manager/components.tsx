@@ -738,6 +738,9 @@ export function BookingActionButtons({ booking }: { booking: any }) {
 				</div>
 				<div className='text-[11px] text-gray-500'>
 					Current status: <span className='font-medium text-gray-700'>{booking.status}</span>
+					{booking.createdByRole && (
+						<div>Created by: <span className='font-medium text-gray-700'>{booking.createdByRole}</span></div>
+					)}
 				</div>
 			</div>
 

@@ -40,6 +40,7 @@ model User {
     hashedPassword String?
     name           String?
     image          String?
+    points         Int       @default(0)
     role           Role      @default(USER)
     OwnedSpas      Spa[]
     Employee       Employee?
@@ -153,6 +154,7 @@ model Booking {
     totalCents        Int
     paidCents         Int           @default(0)
     stripePiId        String?
+    createdByRole     Role          @default(USER)
     cancellation      Cancellation?
     BookingItems      BookingItem[]
     createdAt         DateTime      @default(now())
@@ -249,4 +251,21 @@ model SupportTicket {
 
     @@index([userId, status])
     @@index([spaId, status])
+}
+
+// Lightweight audit log for manager/owner actions
+model AuditLog {
+    id        String   @id @default(cuid())
+    spaId     String?
+    bookingId String?
+    userId    String?  // the subject user (e.g., booking.userId)
+    actorId   String?  // the user who performed the action
+    actorRole Role     @default(OWNER)
+    action    String
+    details   Json?
+    createdAt DateTime @default(now())
+
+    @@index([spaId])
+    @@index([bookingId])
+    @@index([actorId])
 }

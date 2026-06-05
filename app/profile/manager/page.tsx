@@ -371,8 +371,14 @@ export default async function ManagerDashboardPage() {
 								<div className='space-y-4'>
 									{spa.Employees.map((employee) => (
 										<div key={employee.id} className='flex items-center gap-3'>
-											<div className='h-10 w-10 rounded-full bg-gradient-to-br from-warm-400 to-nude-500 flex items-center justify-center text-white font-medium'>
-												{employee.name[0]}
+											<div className='h-10 w-10 rounded-full overflow-hidden'>
+												{employee.photoUrl ? (
+													<img src={employee.photoUrl} alt={employee.name} className='w-full h-full object-cover' />
+												) : (
+													<div className='h-10 w-10 rounded-full bg-gradient-to-br from-warm-400 to-nude-500 flex items-center justify-center text-white font-medium'>
+														{employee.name[0]}
+													</div>
+												)}
 											</div>
 											<div className='flex-1'>
 												<div className='font-medium text-gray-900'>
