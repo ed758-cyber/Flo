@@ -11,6 +11,8 @@ const BookingInput = z.object({
 	employeeId: z.string().optional(),
 	start: z.string(),
 	paymentMethod: z.enum(['CARD', 'CASH']),
+    pointsRedeemed: z.number().int().min(0).optional(),
+    discountCents: z.number().int().min(0).optional(),
 	payType: z.enum(['FULL', 'DEPOSIT']).default('FULL'),
 	notes: z.string().optional(),
 	consentSignature: z.string().optional(),
@@ -64,10 +66,12 @@ export async function createBooking(input: z.infer<typeof BookingInput>) {
 			0,
 		)
 		const end = new Date(start.getTime() + totalDurationMin * 60_000)
-		const totalCents = orderedSubservices.reduce(
+		const totalCentsOriginal = orderedSubservices.reduce(
 			(total, sub) => total + sub!.priceCents,
 			0,
 		)
+		const discount = input.discountCents ?? 0
+		const totalCents = Math.max(0, totalCentsOriginal - discount)
 
 		// Validate start is in the future
 		if (start <= new Date()) {
@@ -113,6 +117,8 @@ export async function createBooking(input: z.infer<typeof BookingInput>) {
 				paymentMethod: input.paymentMethod,
 				paymentStatus: 'UNPAID',
 				totalCents,
+				discountCents: discount,
+				pointsRedeemed: input.pointsRedeemed ?? 0,
 				paidCents: 0, // BUG FIX: always 0 until actually paid
 				notes: input.notes?.trim() || null,
 				intakeForm: input.intakeForm || undefined,

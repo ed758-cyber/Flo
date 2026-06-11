@@ -8,4 +8,8 @@
 		--color-accent: 25 40% 85%;
 		--color-warm: 20 30% 90%;
 	}
+
+	input, textarea, select, button {
+		color: #000; /* black text for form controls */
+	}
 }

@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
+import { Prisma } from '@prisma/client'
 
 // ─── Auth helper ─────────────────────────────────────────────────────────────
 
@@ -29,6 +30,7 @@ const ManagerBookingInput = z.object({
 	customerEmail: z.string().email().optional().or(z.literal('')),
 	customerPhone: z.string().optional(),
 	notes: z.string().optional(),
+	intakeForm: z.record(z.string(), z.string()).optional(),
 })
 
 export async function createBooking(
@@ -121,6 +123,7 @@ export async function createBooking(
 				totalCents,
 				paidCents: 0,
 				notes: input.notes || null,
+				intakeForm: input.intakeForm || undefined,
 				customerName: input.customerName || null,
 				customerEmail: input.customerEmail || null,
 				customerPhone: input.customerPhone || null,
@@ -133,6 +136,22 @@ export async function createBooking(
 				},
 			},
 		})
+
+		// Audit
+		try {
+			await prisma.auditLog.create({
+				data: {
+					spaId: input.spaId,
+					bookingId: booking.id,
+					actorId: auth.userId,
+					actorRole: auth.role as any,
+					action: 'create_booking',
+					details: { managerCreated: true, customerEmail: input.customerEmail ?? null },
+				},
+			})
+		} catch (e) {
+			console.error('Failed to write audit log (create booking):', e)
+		}
 
 		revalidatePath('/manager')
 		return { ok: true, bookingId: booking.id }
@@ -162,8 +181,8 @@ export async function rescheduleBooking(input: {
 		// Allow marking COMPLETED or NO_SHOW after the booking has started,
 		// but prevent other modifications once the start time has passed.
 		const started = new Date(booking.start) <= new Date()
-		if (started && !['COMPLETED', 'NO_SHOW'].includes(status)) {
-			return { ok: false, error: 'Only status updates to COMPLETED or NO_SHOW are allowed after the booking start time' }
+		if (started) {
+			return { ok: false, error: 'Cannot reschedule a booking after it has already started' }
 		}
 
 		const [datePart, timePart] = input.newStart.split('T')
@@ -199,6 +218,21 @@ export async function rescheduleBooking(input: {
 			where: { id: input.bookingId },
 			data: { start: newStart, end: newEnd },
 		})
+
+		// Audit
+		try {
+			await prisma.auditLog.create({
+				data: {
+					bookingId: input.bookingId,
+					actorId: auth.userId,
+					actorRole: auth.role as any,
+					action: 'reschedule_booking',
+					details: { newStart: newStart.toISOString() },
+				},
+			})
+		} catch (e) {
+			console.error('Failed to write audit log (reschedule):', e)
+		}
 
 		revalidatePath('/manager')
 		return { ok: true, message: 'Booking rescheduled' }
@@ -240,6 +274,21 @@ export async function cancelBookingManager(bookingId: string, reason?: string) {
 			}),
 		])
 
+		// Audit
+		try {
+			await prisma.auditLog.create({
+				data: {
+					bookingId,
+					actorId: auth.userId,
+					actorRole: auth.role as any,
+					action: 'cancel_booking',
+					details: { reason },
+				},
+			})
+		} catch (e) {
+			console.error('Failed to write audit log (cancel):', e)
+		}
+
 		revalidatePath('/manager')
 		return { ok: true, message: 'Booking cancelled' }
 	} catch (error) {
@@ -270,6 +319,21 @@ export async function markBookingPaid(bookingId: string) {
 				status: 'CONFIRMED',
 			},
 		})
+
+		// Audit
+		try {
+			await prisma.auditLog.create({
+				data: {
+					bookingId,
+					actorId: auth.userId,
+					actorRole: auth.role as any,
+					action: 'mark_paid',
+					details: { amount: booking.totalCents },
+				},
+			})
+		} catch (e) {
+			console.error('Failed to write audit log (mark paid):', e)
+		}
 
 		revalidatePath('/manager')
 		return { ok: true }
@@ -307,6 +371,21 @@ export async function updateBookingStatus(
 			} catch (e) {
 				console.error('Failed to award points:', e)
 			}
+		}
+
+		// Audit
+		try {
+			await prisma.auditLog.create({
+				data: {
+					bookingId,
+					actorId: auth.userId,
+					actorRole: auth.role as any,
+					action: 'update_status',
+					details: { status },
+				},
+			})
+		} catch (e) {
+			console.error('Failed to write audit log (update status):', e)
 		}
 
 		revalidatePath('/manager')
@@ -353,6 +432,21 @@ export async function updateBookingAmount(
 			data: { notes: updatedNotes },
 		})
 
+		// Audit
+		try {
+			await prisma.auditLog.create({
+				data: {
+					bookingId,
+					actorId: auth.userId,
+					actorRole: auth.role as any,
+					action: 'update_amount',
+					details: { oldTotal: booking.totalCents, newTotal: newTotalCents, reason },
+				},
+			})
+		} catch (e) {
+			console.error('Failed to write audit log (update amount):', e)
+		}
+
 		revalidatePath('/manager')
 		return { ok: true, message: 'Booking amount updated' }
 	} catch (error) {
@@ -393,6 +487,21 @@ export async function createEmployee(input: z.infer<typeof EmployeeInput>) {
 			},
 		})
 
+		// Audit
+		try {
+			await prisma.auditLog.create({
+				data: {
+					spaId: input.spaId,
+					actorId: auth.userId,
+					actorRole: auth.role as any,
+					action: 'create_employee',
+					details: { name: input.name, email: input.email || null },
+				},
+			})
+		} catch (e) {
+			console.error('Failed to write audit log (create employee):', e)
+		}
+
 		revalidatePath('/manager')
 		return { ok: true, employee }
 	} catch (error) {
@@ -426,7 +535,21 @@ export async function updateEmployee(
 		})
 
 		revalidatePath('/manager')
-		return { ok: true, employee: updated }
+			// Audit
+			try {
+				await prisma.auditLog.create({
+					data: {
+						spaId: updated.spaId,
+						actorId: auth.userId,
+						actorRole: auth.role as any,
+						action: 'update_employee',
+						details: { id: updated.id, name: updated.name },
+					},
+				})
+			} catch (e) {
+				console.error('Failed to write audit log (update employee):', e)
+			}
+			return { ok: true, employee: updated }
 	} catch (error) {
 		console.error('updateEmployee error:', error)
 		return { ok: false, error: 'Failed to update staff member' }
@@ -459,8 +582,22 @@ export async function deleteEmployee(employeeId: string) {
 		}
 
 		await prisma.employee.delete({ where: { id: employeeId } })
-		revalidatePath('/manager')
-		return { ok: true }
+			revalidatePath('/manager')
+			// Audit
+			try {
+				await prisma.auditLog.create({
+					data: {
+						spaId: emp.spaId,
+						actorId: auth.userId,
+						actorRole: auth.role as any,
+						action: 'delete_employee',
+						details: { id: emp.id, name: emp.name },
+					},
+				})
+			} catch (e) {
+				console.error('Failed to write audit log (delete employee):', e)
+			}
+			return { ok: true }
 	} catch (error) {
 		console.error('deleteEmployee error:', error)
 		return { ok: false, error: 'Failed to delete staff member' }
@@ -488,7 +625,21 @@ export async function createService(
 		})
 
 		revalidatePath('/manager')
-		return { ok: true, service }
+			// Audit
+			try {
+				await prisma.auditLog.create({
+					data: {
+						spaId,
+						actorId: auth.userId,
+						actorRole: auth.role as any,
+						action: 'create_service',
+						details: { id: service.id, name: service.name },
+					},
+				})
+			} catch (e) {
+				console.error('Failed to write audit log (create service):', e)
+			}
+			return { ok: true, service }
 	} catch (error) {
 		return { ok: false, error: 'Failed to create service' }
 	}
@@ -516,7 +667,21 @@ export async function updateService(
 		})
 
 		revalidatePath('/manager')
-		return { ok: true }
+			// Audit
+			try {
+				await prisma.auditLog.create({
+					data: {
+						spaId: service.spaId,
+						actorId: auth.userId,
+						actorRole: auth.role as any,
+						action: 'update_service',
+						details: { id: service.id, name: data.name ?? service.name },
+					},
+				})
+			} catch (e) {
+				console.error('Failed to write audit log (update service):', e)
+			}
+			return { ok: true }
 	} catch (error) {
 		return { ok: false, error: 'Failed to update service' }
 	}
@@ -569,6 +734,19 @@ export async function deleteService(serviceId: string) {
 
 		await prisma.service.delete({ where: { id: serviceId } })
 		revalidatePath('/manager')
+		try {
+			await prisma.auditLog.create({
+				data: {
+					spaId: service.spaId,
+					actorId: auth.userId,
+					actorRole: auth.role as any,
+					action: 'delete_service',
+					details: { id: service.id, name: service.name },
+				},
+			})
+		} catch (e) {
+			console.error('Failed to write audit log (delete service):', e)
+		}
 		return { ok: true }
 	} catch (error) {
 		return { ok: false, error: 'Failed to delete service' }
@@ -599,6 +777,19 @@ export async function createSubservice(input: {
 		})
 
 		revalidatePath('/manager')
+		try {
+			await prisma.auditLog.create({
+				data: {
+					spaId: input.spaId,
+					actorId: auth.userId,
+					actorRole: auth.role as any,
+					action: 'create_subservice',
+					details: { id: sub.id, name: sub.name, priceCents: sub.priceCents },
+				},
+			})
+		} catch (e) {
+			console.error('Failed to write audit log (create subservice):', e)
+		}
 		return { ok: true, subservice: sub }
 	} catch (error) {
 		return { ok: false, error: 'Failed to create subservice' }
@@ -636,6 +827,19 @@ export async function updateSubservice(
 		})
 
 		revalidatePath('/manager')
+		try {
+			await prisma.auditLog.create({
+				data: {
+					spaId: subservice.spaId,
+					actorId: auth.userId,
+					actorRole: auth.role as any,
+					action: 'update_subservice',
+					details: { id: subservice.id, name: data.name ?? subservice.name },
+				},
+			})
+		} catch (e) {
+			console.error('Failed to write audit log (update subservice):', e)
+		}
 		return { ok: true }
 	} catch (error) {
 		return { ok: false, error: 'Failed to update treatment' }
@@ -678,6 +882,19 @@ export async function deleteSubservice(subserviceId: string) {
 
 		await prisma.subservice.delete({ where: { id: subserviceId } })
 		revalidatePath('/manager')
+		try {
+			await prisma.auditLog.create({
+				data: {
+					spaId: subservice.spaId,
+					actorId: auth.userId,
+					actorRole: auth.role as any,
+					action: 'delete_subservice',
+					details: { id: subservice.id, name: subservice.name },
+				},
+			})
+		} catch (e) {
+			console.error('Failed to write audit log (delete subservice):', e)
+		}
 		return { ok: true }
 	} catch (error) {
 		return { ok: false, error: 'Failed to delete subservice' }
@@ -716,6 +933,19 @@ export async function updateSpaSettings(
 
 		revalidatePath('/manager')
 		revalidatePath(`/s/${spa.slug}`)
+		try {
+			await prisma.auditLog.create({
+				data: {
+					spaId,
+					actorId: auth.userId,
+					actorRole: auth.role as any,
+					action: 'update_spa_settings',
+					details: data as any,
+				},
+			})
+		} catch (e) {
+			console.error('Failed to write audit log (update spa settings):', e)
+		}
 		return { ok: true }
 	} catch (error) {
 		return { ok: false, error: 'Failed to update spa settings' }

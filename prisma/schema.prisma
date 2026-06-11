@@ -152,6 +152,8 @@ model Booking {
     paymentMethod     PaymentMethod
     paymentStatus     PaymentStatus @default(UNPAID)
     totalCents        Int
+    discountCents     Int           @default(0)
+    pointsRedeemed    Int           @default(0)
     paidCents         Int           @default(0)
     stripePiId        String?
     createdByRole     Role          @default(USER)

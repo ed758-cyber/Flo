@@ -331,9 +331,11 @@ function TimeGrid({ date, selectedTime, onSelect, bookedSlots, durationMin, empl
 export default function BookClient({
 	spa,
 	preselectedServiceId,
+	userPoints = 0,
 }: {
 	spa: any
 	preselectedServiceId?: string
+	userPoints?: number
 }) {
 	const router = useRouter()
 	const subs = useMemo(() => spa.Services.flatMap((s: any) => s.Subservices), [spa])
@@ -352,6 +354,12 @@ export default function BookClient({
 	const [showIntakeModal, setShowIntakeModal] = useState(false)
 	const [intakeForm, setIntakeForm] = useState<Record<string, string>>({})
 	const [loading, setLoading] = useState(false)
+	const [redeemLoading, setRedeemLoading] = useState(false)
+	const [redeemError, setRedeemError] = useState('')
+	const [remainingPoints, setRemainingPoints] = useState<number | null>(null)
+	const [redeemPointsInput, setRedeemPointsInput] = useState(0)
+	const [discountCents, setDiscountCents] = useState(0)
+	const [pointsRedeemed, setPointsRedeemed] = useState(0)
 	const [error, setError] = useState('')
 	const [step, setStep] = useState<1 | 2 | 3>(1) // 1=service, 2=datetime, 3=confirm
 
@@ -366,6 +374,14 @@ export default function BookClient({
 	const totalCents = useMemo(
 		() => selectedSubs.reduce((sum: number, sub: any) => sum + sub.priceCents, 0),
 		[selectedSubs]
+	)
+	const discountedTotalCents = useMemo(
+		() => Math.max(0, totalCents - discountCents),
+		[totalCents, discountCents]
+	)
+	const displayTotalCents = useMemo(
+		() => (discountCents > 0 ? discountedTotalCents : totalCents),
+		[discountCents, discountedTotalCents, totalCents]
 	)
 	const selectedEmployee = useMemo(
 		() => spa.Employees.find((employee: any) => employee.id === employeeId),
@@ -406,6 +422,8 @@ export default function BookClient({
 				employeeId: employeeId || undefined,
 				start: `${date}T${time}:00`,
 				paymentMethod: method,
+				pointsRedeemed: pointsRedeemed || undefined,
+				discountCents: discountCents || undefined,
 				payType: 'FULL',
 				notes,
 				consentSignature: spa.requiresBookingConsent ? consentSignature : undefined,
@@ -421,6 +439,39 @@ export default function BookClient({
 			setError('An error occurred. Please try again.')
 		} finally {
 			setLoading(false)
+		}
+	}
+
+	const handleRedeemPoints = async () => {
+		setRedeemError('')
+		if (!redeemPointsInput || redeemPointsInput <= 0) {
+			setRedeemError('Enter a valid number of points to redeem.')
+			return
+		}
+		if (redeemPointsInput > userPoints) {
+			setRedeemError('You do not have enough points.')
+			return
+		}
+		setRedeemLoading(true)
+		try {
+			const res = await fetch('/api/redeemPoints', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ points: redeemPointsInput }),
+			})
+			const data = await res.json()
+			if (data.ok) {
+				setDiscountCents(data.discountCents)
+				setPointsRedeemed(redeemPointsInput)
+				setRemainingPoints(data.remainingPoints)
+				setRedeemError('')
+			} else {
+				setRedeemError(data.error || 'Failed to redeem points')
+			}
+		} catch (error) {
+			setRedeemError('Network error redeeming points')
+		} finally {
+			setRedeemLoading(false)
 		}
 	}
 
@@ -772,7 +823,7 @@ export default function BookClient({
 									<div>
 										<div className='text-xs text-gray-500 uppercase tracking-wide mb-1'>Total</div>
 										<div className='text-2xl font-bold text-warm-600'>
-											${(totalCents / 100).toFixed(2)}
+											${(displayTotalCents / 100).toFixed(2)}
 										</div>
 									</div>
 								</div>
@@ -837,7 +888,50 @@ export default function BookClient({
 							</div>
 						)}
 
-						{/* Payment method */}
+						{userPoints > 0 && (
+						<div className='mb-8 rounded-2xl border border-gray-200 p-5 bg-white'>
+							<div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+								<div>
+									<h3 className='text-sm font-semibold text-gray-700'>Redeem Points</h3>
+									<p className='text-sm text-gray-500 mt-1'>Apply your available points toward this booking. 1 point = $1.</p>
+								</div>
+								<div className='flex items-center gap-2'>
+									<input
+										type='number'
+										min={1}
+										max={userPoints}
+										value={redeemPointsInput}
+										onChange={(e) => setRedeemPointsInput(Number(e.target.value))}
+										className='w-24 rounded-xl border border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-warm-400 outline-none'
+									/>
+									<button
+										type='button'
+										onClick={handleRedeemPoints}
+										disabled={redeemLoading}
+										className='rounded-xl bg-warm-500 px-4 py-3 text-sm font-semibold text-white hover:bg-warm-600 transition-colors disabled:opacity-60'
+									>
+										{redeemLoading ? 'Applying...' : 'Redeem'}
+									</button>
+								</div>
+							</div>
+							<div className='mt-4 rounded-xl bg-warm-50 border border-warm-100 p-4 text-sm text-warm-900'>
+								<div className='flex items-center justify-between'>
+									<span>Available points</span>
+									<span className='font-semibold'>{remainingPoints ?? userPoints}</span>
+								</div>
+								{pointsRedeemed > 0 && (
+									<div className='mt-2 text-sm text-gray-600'>
+										Redeemed {pointsRedeemed} point{pointsRedeemed !== 1 ? 's' : ''} for ${(discountCents / 100).toFixed(2)} off.
+									</div>
+								)}
+								{redeemError && (
+									<div className='mt-2 text-sm text-red-700'>{redeemError}</div>
+								)}
+							</div>
+						</div>
+					)}
+
+					{/* Payment method */}
 						<div className='mb-8'>
 							<h3 className='text-sm font-semibold text-gray-700 mb-3'>Payment Method</h3>
 							<div className='grid sm:grid-cols-2 gap-3'>

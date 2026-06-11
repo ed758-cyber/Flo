@@ -20,7 +20,7 @@ import {
 	updateSpaSettings,
 } from './actions'
 import { formatBookingServiceNames, getBookingDurationMin } from '@/lib/booking'
-import { getFilledIntakeEntries } from '@/lib/intake'
+import { getFilledIntakeEntries, getIntakeSections } from '@/lib/intake'
 
 // ─── Shared UI helpers ────────────────────────────────────────────────────────
 
@@ -50,24 +50,24 @@ function Modal({
 						<svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
 							<path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M6 18L18 6M6 6l12 12' />
 						</svg>
-					</button>
+						</button>
+					</div>
+					<div className='p-6'>{children}</div>
 				</div>
-				<div className='p-6'>{children}</div>
 			</div>
-		</div>
-	)
-}
+		)
+	}
 
-function ResultBanner({ result }: { result: any }) {
-	if (!result) return null
-	return (
-		<div className={`p-3 rounded-xl text-sm font-medium mb-4 ${result.ok ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
-			{result.ok ? '✓ ' : '✗ '}{result.message || result.error}
-		</div>
-	)
-}
+	function ResultBanner({ result }: { result: any }) {
+		if (!result) return null
+		return (
+			<div className={`p-3 rounded-xl text-sm font-medium mb-4 ${result.ok ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+				{result.ok ? '✓ ' : '✗ '}{result.message || result.error}
+			</div>
+		)
+	}
 
-function Spinner() {
+	function Spinner() {
 	return (
 		<svg className='animate-spin w-4 h-4' fill='none' viewBox='0 0 24 24'>
 			<circle className='opacity-25' cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='4' />
@@ -102,6 +102,7 @@ export function CreateBookingModal({
 		customerEmail: '',
 		customerPhone: '',
 		notes: '',
+		intakeForm: {} as Record<string, string>,
 	})
 
 	const subs = spa.Services?.flatMap((s: any) => s.Subservices) ?? []
@@ -146,6 +147,7 @@ export function CreateBookingModal({
 				customerEmail: form.customerEmail || undefined,
 				customerPhone: form.customerPhone || undefined,
 				notes: form.notes || undefined,
+				intakeForm: form.intakeForm && Object.keys(form.intakeForm).length > 0 ? form.intakeForm : undefined,
 			})
 			setResult(res)
 			if (res.ok) {
@@ -162,12 +164,16 @@ export function CreateBookingModal({
 						customerEmail: '',
 						customerPhone: '',
 						notes: '',
+						intakeForm: {},
 					})
 					router.refresh()
 				}, 1500)
 			}
 		})
 	}
+
+	// Intake form sections for selected services
+	const intakeSections = getIntakeSections(selectedSubs.map((sub: any) => `${sub.service?.name || ''} ${sub.name}`.trim()))
 
 	const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }))
 
@@ -327,6 +333,30 @@ export function CreateBookingModal({
 					/>
 				</div>
 			</div>
+
+			{/* Intake Form (optional) */}
+			{intakeSections.length > 0 && (
+				<div className='sm:col-span-2'>
+					<label className='block text-sm font-semibold text-gray-700 mb-2'>Intake Form (optional)</label>
+					<div className='space-y-3 max-h-72 overflow-y-auto pr-1'>
+						{intakeSections.map((section: any) => (
+							<div key={section.title}>
+								<div className='text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2'>{section.title}</div>
+								{section.questions.map((q: any) => (
+									<div key={q.id} className='mb-2'>
+										<label className='text-sm text-gray-700 block mb-1'>{q.label}</label>
+										{q.type === 'textarea' ? (
+											<textarea value={form.intakeForm[q.id] || ''} onChange={(e) => setForm((f) => ({ ...f, intakeForm: { ...f.intakeForm, [q.id]: e.target.value } }))} className='w-full border rounded-xl px-3 py-2' />
+										) : (
+											<input value={form.intakeForm[q.id] || ''} onChange={(e) => setForm((f) => ({ ...f, intakeForm: { ...f.intakeForm, [q.id]: e.target.value } }))} className='w-full border rounded-xl px-3 py-2' />
+										)}
+									</div>
+								))}
+							</div>
+						))}
+					</div>
+				</div>
+			)}
 
 			{/* Summary */}
 			{selectedSubs.length > 0 && form.date && form.time && (
@@ -668,6 +698,8 @@ export function BookingActionButtons({ booking }: { booking: any }) {
 	const [newTime, setNewTime] = useState('')
 	const [cancelReason, setCancelReason] = useState('')
 	const [statusValue, setStatusValue] = useState(booking.status)
+	const [paymentStatusValue, setPaymentStatusValue] = useState(booking.paymentStatus)
+	const [statusChangeReason, setStatusChangeReason] = useState('')
 
 	const today = new Date().toISOString().split('T')[0]
 	const timeSlots: string[] = []
@@ -689,6 +721,12 @@ export function BookingActionButtons({ booking }: { booking: any }) {
 		})
 	}
 
+	const noChange = statusValue === booking.status && paymentStatusValue === booking.paymentStatus
+	const paymentToggleNeedsReason = (booking.paymentStatus === 'PAID' && paymentStatusValue === 'UNPAID') || (booking.paymentStatus === 'UNPAID' && paymentStatusValue === 'PAID')
+	const statusChangeNeedsReason = (statusValue === 'CANCELLED' && booking.status !== 'CANCELLED') || (statusValue === 'NO_SHOW' && booking.status !== 'NO_SHOW') || (paymentStatusValue === 'REFUNDED' && booking.paymentStatus !== 'REFUNDED')
+	const requiresReason = paymentToggleNeedsReason || statusChangeNeedsReason
+	const disabledUpdate = isPending || noChange || (requiresReason && !statusChangeReason.trim())
+
 	return (
 		<>
 			<div className='space-y-2'>
@@ -705,15 +743,38 @@ export function BookingActionButtons({ booking }: { booking: any }) {
 						<option value='NO_SHOW'>No Show</option>
 						<option value='CANCELLED'>Cancelled</option>
 					</select>
+					<select
+						value={paymentStatusValue}
+						onChange={(e) => setPaymentStatusValue(e.target.value)}
+						disabled={isPending}
+						className='rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 focus:border-warm-400 focus:outline-none focus:ring-2 focus:ring-warm-200 disabled:opacity-50'
+					>
+						<option value='UNPAID'>Unpaid</option>
+						<option value='PARTIAL'>Partial</option>
+						<option value='PAID'>Paid</option>
+						<option value='REFUNDED'>Refunded</option>
+					</select>
 					<button
 						onClick={() =>
-							run(() => updateBookingStatus(booking.id, statusValue as any))
+							run(async () => {
+								const res = await fetch('/api/manager/updateBookingStatus', {
+									method: 'POST',
+									headers: { 'Content-Type': 'application/json' },
+									body: JSON.stringify({
+										bookingId: booking.id,
+										status: statusValue,
+										paymentStatus: paymentStatusValue,
+										reason: statusChangeReason,
+									}),
+								})
+								return res.json()
+							})
 						}
-						disabled={isPending || statusValue === booking.status}
+						disabled={disabledUpdate}
 						className='px-2.5 py-1 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition-colors disabled:opacity-50'
-					>
-						Update Status
-					</button>
+						>
+							Update Status
+						</button>
 					{booking.paymentStatus !== 'PAID' && (
 						<button
 							onClick={() => run(() => markBookingPaid(booking.id))}

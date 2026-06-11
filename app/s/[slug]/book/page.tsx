@@ -1,3 +1,5 @@
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import BookClient from './ui'
 import { redirect } from 'next/navigation'
@@ -9,6 +11,7 @@ export default async function BookPage({
 	params: { slug: string }
 	searchParams: { service?: string }
 }) {
+	const session = await getServerSession(authOptions)
 	const spa = await prisma.spa.findUnique({
 		where: { slug: params.slug },
 		include: {
@@ -51,12 +54,19 @@ export default async function BookPage({
 			</div>
 		)
 
+	const userPoints = session?.user?.email
+		? (await prisma.user.findUnique({
+			where: { email: session.user.email },
+			select: { points: true },
+		}))?.points ?? 0
+		: 0
+
 	const averageRating = spa.Reviews.length
 		? Math.round((spa.Reviews.reduce((sum, review) => sum + review.rating, 0) / spa.Reviews.length) * 10) / 10
 		: 0
 	const reviewCount = spa.Reviews.length
 
 	return (
-		<BookClient spa={{ ...spa, averageRating, reviewCount }} preselectedServiceId={searchParams.service} />
+		<BookClient spa={{ ...spa, averageRating, reviewCount }} preselectedServiceId={searchParams.service} userPoints={userPoints} />
 	)
 }
